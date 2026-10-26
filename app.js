@@ -825,6 +825,7 @@ function settingsView() {
       <button class="btn block" data-act="saveSettings">Speichern</button></div>
     <div class="card"><h3>Backup</h3><p class="small muted">Alle Daten liegen nur auf diesem Gerät. Exportiere ab und zu ein Backup.</p>
       <div class="row"><button class="btn secondary grow" data-act="export">⬇ Export</button><label class="btn secondary grow center">⬆ Import<input type="file" id="importfile" accept="application/json" hidden></label></div></div>
+    <div class="card"><h3>Bildschirm-Test</h3><p class="small muted">Zeigt Messwerte und ein Streifenmuster bis zum unteren Rand. Hilft bei Darstellungsfehlern.</p><button class="btn secondary" data-act="screenTest">Test starten</button></div>
     <div class="card"><h3>Neustart</h3><p class="small muted">Löscht alles: Gewohnheiten, Stadt, Donuts.</p><button class="btn red" data-act="reset">Spiel zurücksetzen</button></div>
     <p class="small muted center">Private Fan-Version für den Eigengebrauch. Nicht verbunden mit den Rechteinhabern der Simpsons.</p>`;
 }
@@ -954,6 +955,17 @@ const actions = {
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   },
+  screenTest: () => {
+    const probe = (u) => { lvhProbe.style.height = '100' + u; const v = lvhProbe.offsetHeight; lvhProbe.style.height = '100lvh'; return v; };
+    const safe = (s) => { const d = document.createElement('div'); d.style.cssText = `position:fixed;top:0;height:env(safe-area-inset-${s})`; document.body.appendChild(d); const v = d.offsetHeight; d.remove(); return v; };
+    const info = { innerH: innerHeight, outerH: outerHeight, screenH: screenH(), clientH: document.documentElement.clientHeight, visualH: Math.round(window.visualViewport?.height || 0),
+      vh: probe('vh'), svh: probe('svh'), dvh: probe('dvh'), lvh: probe('lvh'), appH: appHeight(), standalone, navStandalone: !!navigator.standalone, safeTop: safe('top'), safeBottom: safe('bottom') };
+    const ov = document.createElement('div');
+    ov.style.cssText = `position:fixed;left:0;top:0;width:100vw;height:${Math.max(appHeight(), screenH()) + 200}px;z-index:99;background:repeating-linear-gradient(45deg,#ff5a4e 0 20px,#ffd90f 20px 40px)`;
+    ov.innerHTML = `<pre style="margin:90px 16px 0;padding:12px;background:#fff;border:3px solid #1d1d1d;border-radius:12px;font:700 14px/1.4 monospace;white-space:pre-wrap">${esc(JSON.stringify(info, null, 1))}\n\nTippen zum Schließen</pre>`;
+    ov.onclick = () => ov.remove();
+    document.body.appendChild(ov);
+  },
   reset: () => {
     if (!confirm('Wirklich ALLES löschen? Das kann nicht rückgängig gemacht werden.')) return;
     S = freshState(); save(); tab = 'home'; sub = null; World.reset(); render();
@@ -984,16 +996,23 @@ document.addEventListener('input', (e) => { if (e.target.id === 'fnote' && run()
 document.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.id === 'todoin') actions.todoAdd(); });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) { if (S.lastCheck < addDays(today(), -1)) processMissedDays(); tickClock(); if (!run()) document.title = 'Springfield Habits'; } });
 
-// iOS (Home-Bildschirm-App): innerHeight ist dort teils kürzer als der Bildschirm, unten bleibt ein Streifen.
-// Als installierte App nehmen wir deshalb die Bildschirmhöhe.
-const standalone = navigator.standalone || matchMedia('(display-mode: standalone)').matches;
+// iOS: innerHeight endet über der (schwebenden) Suchleiste, in der Home-Bildschirm-App sogar über einer
+// Suchleiste, die es dort gar nicht gibt. Wir zeichnen deshalb bis zum unteren Bildschirmrand:
+// 100lvh (größter Viewport) per Messelement, als installierte App die Bildschirmhöhe.
+const standalone = !!navigator.standalone || ['standalone', 'fullscreen', 'minimal-ui'].some((m) => matchMedia(`(display-mode: ${m})`).matches);
+const lvhProbe = document.createElement('div');
+lvhProbe.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:100vh;height:100lvh;visibility:hidden;pointer-events:none';
+document.body.appendChild(lvhProbe);
+const screenH = () => (window.screen ? (innerWidth > innerHeight ? Math.min(screen.width, screen.height) : Math.max(screen.width, screen.height)) : 0);
 function appHeight() {
-  const h = window.innerHeight;
-  if (!standalone || !window.screen) return h;
-  const s = innerWidth > innerHeight ? Math.min(screen.width, screen.height) : Math.max(screen.width, screen.height);
-  return Math.max(h, s);
+  return Math.max(window.innerHeight, lvhProbe.offsetHeight, standalone ? screenH() : 0);
 }
-const fitViewport = () => document.documentElement.style.setProperty('--appH', appHeight() + 'px');
+// Im Browser bleiben Buttons über der Suchleiste; in der App gibt es keine, dort gilt der echte Rand.
+function fitViewport() {
+  const h = appHeight(), st = document.documentElement.style;
+  st.setProperty('--appH', h + 'px');
+  st.setProperty('--barGap', (standalone ? 0 : Math.max(0, h - window.innerHeight)) + 'px');
+}
 fitViewport();
 window.addEventListener('resize', fitViewport);
 // Randfarbe (Statusleiste, Ränder) passend zum Bildschirm: Wasser auf der Karte, Himmel auf den Seiten.
