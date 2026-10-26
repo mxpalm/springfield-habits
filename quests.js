@@ -227,16 +227,7 @@ function questCheck() {
 /* ---------- Ansichten ---------- */
 let checkTab = 'today';
 function checkinTabs() {
-  return `<div class="seg"><button class="${checkTab === 'today' ? 'on' : ''}" data-act="ckTab" data-t="today">📋 Tagesquests</button><button class="${checkTab === 'quests' ? 'on' : ''}" data-act="ckTab" data-t="quests">🏆 Hauptquests</button></div>`;
-}
-// Offene Einmal-Aufgaben aller aktiven Quests (für „Heute“)
-function openTasksHtml() {
-  const rows = [];
-  for (const q of activeQuests()) for (const s of goalOf(q).subs) {
-    const r = q.subs[s.key];
-    if (r && r.state === 'active' && s.type !== 'habit') rows.push(subRow(q, s));
-  }
-  return rows.length ? `<div class="group-title">Aufgaben & Wissen</div>${rows.join('')}` : '';
+  return `<div class="seg"><button class="${checkTab === 'today' ? 'on' : ''}" data-act="ckTab" data-t="today">📋 Heute</button><button class="${checkTab === 'quests' ? 'on' : ''}" data-act="ckTab" data-t="quests">🏆 Quests</button></div>`;
 }
 function subRow(q, s) {
   const r = q.subs[s.key] || {}, d = DIFF[s.diff], done = r.state === 'done' || r.state === 'skip';
@@ -296,7 +287,7 @@ function subSheet(q, s) {
 /* ---------- Aktionen ---------- */
 Object.assign(actions, {
   qzStart: () => { quiz = { step: 0, a: {} }; tab = 'quiz'; closeModal(); render(); },
-  qzSkip: () => { quiz = null; S.profile = { answers: {}, done: false, at: today() }; tab = 'home'; save(); render(); toast('Du kannst den Fragebogen jederzeit im Check-in unter „Hauptquests“ machen.'); },
+  qzSkip: () => { quiz = null; S.profile = { answers: {}, done: false, at: today() }; tab = 'home'; save(); render(); toast('Du kannst den Fragebogen jederzeit im Check-in unter „Quests“ machen.'); },
   qzBack: () => { if (quiz.step === 0) { quiz = null; tab = S.started ? 'home' : tab; render(); return; } quiz.step--; render(); },
   qzPick: (d) => {
     const st = quizSteps(quiz.a)[quiz.step], a = quiz.a;

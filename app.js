@@ -394,16 +394,15 @@ function todaySummary() {
 }
 
 // Check-in: Datum blättern (bis 7 Tage zurück), Filter, einklappbare Gruppen, Wischen zum Abhaken.
-let ckBack = 0, ckFilter = 'todo';
+let ckBack = 0;
 const ckKey = () => addDays(today(), -ckBack);
-const filterOf = (st) => (okStatus(st) || st === 'min' ? 'done' : st === 'skip' ? 'skip' : 'todo');
 const streakBonus = (n) => Math.min(5, Math.floor(n / 7));
 function hostOf(h) {
   const q = h.quest && S.quests?.find((x) => x.id === h.quest);
   const g = q && goalOf(q);
   return (g && byId(CHARACTERS, g.host)) || mainChar();
 }
-function weekDots(h, k) {
+function weekDots(h, k, big = false) {
   const t = today();
   let html = '';
   for (let i = 6; i >= 0; i--) {
@@ -414,92 +413,119 @@ function weekDots(h, k) {
     else if (frozen(h, d)) cls = 'ice';
     else if (!isDue(h, d)) cls = 'free';
     else if (d < t) cls = 'miss';
-    html += `<i class="${cls}${d === k ? ' cur' : ''}" title="${DAYS[weekday(d)]}"><b>${DAYS[weekday(d)][0]}</b></i>`;
+    html += `<i class="${cls}${d === k ? ' cur' : ''}" title="${DAYS[weekday(d)]}"><b>${big ? DAYS[weekday(d)] : DAYS[weekday(d)][0]}</b></i>`;
   }
-  return `<div class="dots">${html}</div>`;
+  return `<div class="dots${big ? ' big' : ''}">${html}</div>`;
 }
-function habitCard(h, k) {
-  const st = status(h, k), due = dueOn(h, k), s = streak(h), host = hostOf(h);
-  const wk = h.schedule.type === 'weekly' ? ` · ${weekCount(h, weekStart(k))}/${h.schedule.n} diese Woche` : '';
-  const bonus = h.schedule.type === 'weekly' ? 0 : streakBonus(s);
-  return `<div class="hswipe" data-id="${h.id}">
-    <div class="swipebg"><span class="l">${ic('check')} Erledigt</span><span class="r">Nicht gemacht ${ic('cross')}</span></div>
-    <div class="card habit hc ${st || ''} ${due ? '' : 'notdue'}">
-      <div class="badge" data-act="editHabit" data-id="${h.id}"><span class="emo">${h.emoji}</span><span class="host">${avatarSvg(host, cosmeticOf(host.id), 30, true)}</span></div>
-      <div class="grow body" data-act="editHabit" data-id="${h.id}">
+// Tageszeit-Abschnitte: die Uhrzeit der Erinnerung entscheidet, ohne Uhrzeit „Jederzeit“.
+const SLOTS = [['morning', '🌅', 'Morgens'], ['midday', '☀️', 'Mittags'], ['evening', '🌙', 'Abends'], ['any', '📋', 'Jederzeit']];
+const slotAt = (min) => (min < 11 * 60 ? 'morning' : min < 17 * 60 ? 'midday' : 'evening');
+const slotOf = (h) => (h.remind ? slotAt(toMin(h.remind)) : 'any');
+// Reihenfolge: Tageszeit, dann Uhrzeit; ohne Uhrzeit zuerst die täglichen, wöchentliche zuletzt
+const slotRank = (h) => SLOTS.findIndex(([id]) => id === slotOf(h)) * 10000 + (h.remind ? toMin(h.remind) : 1440) + (h.schedule.type === 'weekly' ? 2000 : 0);
+const finished = (st) => st === 'done' || st === 'min';
+
+// Eine Zeile pro Gewohnheit: Name, eine Hinweiszeile, ein großer Haken. Alles Weitere steckt im Detail-Sheet.
+function habitRow(h, k, { next = false, compact = false } = {}) {
+  const st = status(h, k), s = streak(h), host = hostOf(h);
+  const sub = h.schedule.type === 'weekly' ? `${weekCount(h, weekStart(k))}/${h.schedule.n} diese Woche` : h.cue ? `📍 ${esc(h.cue)}` : h.remind ? `⏰ ${h.remind}` : '';
+  const mark = st === 'done' ? ic('check') : st === 'min' ? '½' : st === 'skip' ? ic('cross') : '';
+  return `<div class="hswipe ${compact ? 'compact' : ''}" data-id="${h.id}">
+    <div class="swipebg"><span class="l">${ic('check')} Erledigt</span><span class="r">Heute nicht ${ic('cross')}</span></div>
+    <div class="card habit hc hrow ${st || ''} ${next ? 'next' : ''} ${compact ? 'compact' : ''}">
+      <div class="badge" data-act="hSheet" data-id="${h.id}"><span class="emo">${h.emoji}</span><span class="host">${avatarSvg(host, cosmeticOf(host.id), 30, true)}</span></div>
+      <div class="grow body" data-act="hSheet" data-id="${h.id}">
+        ${next ? '<span class="nextlbl">Als Nächstes</span>' : ''}
         <div class="name">${esc(h.name)}</div>
-        ${h.cue ? `<div class="cue">📍 ${esc(h.cue)}</div>` : ''}
-        <div class="meta">${h.remind ? `<span class="tchip">⏰ ${h.remind}</span> ` : ''}${h.diff ? `<span class="dchip ${DIFF[h.diff].cls}">${DIFF[h.diff].label}</span> ` : ''}${s ? `<span class="streak">🔥 ${s}</span> ` : ''}${bonus ? `<span class="sbonus">+${bonus} Bonus</span> ` : ''}${schedLabel(h)}${wk}${due ? '' : h.schedule.type === 'weekly' && isDue(h, k) ? ' · Wochenziel erreicht' : ' · heute frei'}</div>
-        ${h.minimum ? `<div class="meta">½ ${esc(h.minimum)}</div>` : ''}
+        ${sub && !compact ? `<div class="sub">${sub}</div>` : ''}
       </div>
-      <div class="checks">
-        <button class="${st === 'skip' ? 'on skip' : ''}" data-act="hs" data-id="${h.id}" data-st="skip" aria-label="Nicht gemacht">✗</button>
-        ${h.minimum ? `<button class="${st === 'min' ? 'on min' : ''}" data-act="hs" data-id="${h.id}" data-st="min" aria-label="Minimum">½</button>` : ''}
-        <button class="${st === 'done' ? 'on done' : ''}" data-act="hs" data-id="${h.id}" data-st="done" aria-label="Erledigt">✓</button>
-      </div>
-      ${weekDots(h, k)}</div></div>`;
+      ${s && !compact ? `<span class="hstreak">🔥${s}</span>` : ''}
+      <button class="ckbtn ${st || ''}" data-act="hs" data-id="${h.id}" data-st="${st || 'done'}" aria-label="${st ? 'Zurücksetzen' : 'Erledigt'}">${mark}</button>
+    </div></div>`;
+}
+function foldGroup(key, icon, title, n, body, shutDefault) {
+  const shut = S.ui?.fold?.[key] ?? shutDefault;
+  return `<div class="hgroup ${shut ? 'shut' : ''}"><button class="ghead" data-act="ckFold" data-g="${esc(key)}" data-def="${shutDefault ? 1 : 0}"><span class="gic">${icon}</span><span class="grow">${esc(title)}</span><span class="gcount">${n}</span><span class="chev">${ic('down', 18)}</span></button>
+    ${shut ? '' : body}</div>`;
 }
 function habitsView() {
   const k = ckKey();
   if (checkTab === 'quests') return `${pageHead('Check-in')}${checkinTabs()}${questsView()}`;
   const active = S.habits.filter((h) => !h.archived && k >= h.created);
-  const count = { todo: 0, done: 0, skip: 0 };
-  for (const h of active) if (dueOn(h, k) || status(h, k)) count[filterOf(status(h, k))]++;
-  // Gruppen: aktive Quests zuerst, dann eigene Routinen
-  const order = (S.quests || []).filter((q) => q.status === 'active').map((q) => goalOf(q).name);
-  const groups = {}, free = [];
-  for (const h of active) {
-    const st = status(h, k);
-    if (!dueOn(h, k) && !st) { if (ckFilter === 'todo') free.push(h); continue; }
-    if (filterOf(st) !== ckFilter) continue;
-    const g = h.group || 'Eigene Gewohnheiten';
-    (groups[g] = groups[g] || []).push(h);
-  }
-  const rank = (g) => { const i = order.indexOf(g); return i < 0 ? 100 : i; };
-  const fold = S.ui?.fold || {};
-  const groupHtml = (g, hs, extra = '') => {
-    const all = active.filter((h) => (h.group || 'Eigene Gewohnheiten') === g && dueOn(h, k));
-    const ok = all.filter((h) => okStatus(status(h, k))).length;
-    const shut = fold[g] ?? extra === 'free';
-    const q = (S.quests || []).find((x) => goalOf(x).name === g);
-    return `<div class="hgroup ${shut ? 'shut' : ''}">
-      <button class="ghead" data-act="ckFold" data-g="${esc(g)}"><span class="gic">${q ? goalOf(q).emoji : extra === 'free' ? '🛋' : '📋'}</span><span class="grow">${esc(extra === 'free' && ckBack ? 'An diesem Tag frei' : g)}</span>${extra === 'free' ? '' : `<span class="gcount">${ok}/${all.length}</span>`}<span class="chev">${ic('down', 18)}</span></button>
-      ${shut ? '' : hs.map((h) => habitCard(h, k)).join('')}</div>`;
-  };
-  const list = Object.entries(groups).sort(([a], [b]) => rank(a) - rank(b) || a.localeCompare(b)).map(([g, hs]) => groupHtml(g, hs)).join('')
-    + (free.length ? groupHtml('Heute frei', free, 'free') : '');
-  const c = mainChar();
-  const empty = { todo: count.done + count.skip ? `<div class="card empty allclear">${avatarSvg(c, cosmeticOf(c.id), 70)}<p><b>Alles abgehakt!</b><br>${esc(pick(c.lines))}</p></div>` : '',
-    done: '<div class="card empty"><p>Noch nichts erledigt – wisch eine Karte nach rechts.</p></div>',
-    skip: '<div class="card empty"><p>Nichts übersprungen. Stark!</p></div>' }[ckFilter];
-  const label = ckBack === 0 ? 'Heute' : ckBack === 1 ? 'Gestern' : `Vor ${ckBack} Tagen`;
-  return `${pageHead('Check-in')}${checkinTabs()}
-    ${S.quests?.length ? '' : `<button class="card questcta" data-act="qzStart"><span style="font-size:34px">🗺️</span><span class="grow"><b>Quests einrichten</b><br><span class="small muted">Fragebogen beantworten – Lisa baut dir Hauptquests mit Methoden aus Studien.</span></span><span class="btn small pink">Los</span></button>`}
-    <div class="datenav">
-      <button class="rbtn small" data-act="ckDay" data-d="1" ${ckBack >= 7 ? 'disabled' : ''} aria-label="Vorheriger Tag">${ICON.back}</button>
-      <div class="grow"><b>${label}</b><span>${fmtDate(k)}</span></div>
-      <button class="rbtn small fwd" data-act="ckDay" data-d="-1" ${ckBack <= 0 ? 'disabled' : ''} aria-label="Nächster Tag">${ICON.back}</button>
-    </div>
-    <div class="seg filters">${[['todo', 'To-dos'], ['done', 'Erledigt'], ['skip', 'Übersprungen']].map(([f, l]) => `<button class="${ckFilter === f ? 'on' : ''}" data-act="ckFilter" data-f="${f}">${l} <span class="n">${count[f]}</span></button>`).join('')}</div>
-    ${active.length ? list || empty : `<div class="card empty"><div style="font-size:48px">🛋️</div><p>Noch keine Gewohnheiten.<br>Leg deine erste an!</p></div>`}
-    ${ckBack === 0 && ckFilter === 'todo' ? openTasksHtml() + pausedHtml() : ''}
-    <button class="btn block" data-act="newHabit">＋ Eigene Gewohnheit</button>
-    <p class="small muted center">Wisch nach rechts = erledigt, nach links = nicht gemacht · ½ = Minimum<br>Quest-Gewohnheiten: Leicht +${DIFF.easy.habit[0]} · Mittel +${DIFF.medium.habit[0]} · Schwer +${DIFF.hard.habit[0]} 🍩<br>Eigene +${REWARDS.habit} 🍩 · Streak-Bonus +1 🍩 je volle Woche (max. +5)</p>`;
-}
+  const due = active.filter((h) => dueOn(h, k) || status(h, k));
+  const open = due.filter((h) => !status(h, k)).sort((a, b) => slotRank(a) - slotRank(b));
+  const handled = due.filter((h) => status(h, k));
+  const free = active.filter((h) => !due.includes(h));
+  const doneN = due.filter((h) => finished(status(h, k))).length;
+  const nextH = open[0], now = ckBack ? null : slotAt(nowMin()), c = mainChar();
 
-function pausedHtml() {
-  const ps = S.habits.filter((h) => h.paused);
-  if (!ps.length) return '';
-  const shut = S.ui?.fold?.['Pausiert'] ?? true;
-  return `<div class="hgroup ${shut ? 'shut' : ''}"><button class="ghead" data-act="ckFold" data-g="Pausiert"><span class="gic">⏸</span><span class="grow">Pausiert</span><span class="gcount">${ps.length}</span><span class="chev">${ic('down', 18)}</span></button>
-    ${shut ? '' : ps.map((h) => `<div class="card row paused"><span style="font-size:24px">${h.emoji}</span><b class="grow">${esc(h.name)}</b><button class="btn small" data-act="hResume" data-id="${h.id}">${ic('play', 14)} Fortsetzen</button></div>`).join('')}</div>`;
+  // Kopf: Datum, Fortschritt, Figur sagt, was jetzt dran ist
+  const label = ckBack === 0 ? 'Heute' : ckBack === 1 ? 'Gestern' : `Vor ${ckBack} Tagen`;
+  const say = !due.length ? 'Heute ist nichts fällig. Genieß den Tag!'
+    : !open.length ? (doneN === due.length ? `Alles erledigt! ${c.lines[0]}` : 'Alles abgehakt. Morgen wieder!')
+    : ckBack ? 'Trag nach, was du an dem Tag geschafft hast.'
+    : doneN === 0 ? 'Tipp auf den Kreis, sobald du etwas erledigt hast.'
+    : `Noch ${open.length} – du schaffst das!`;
+  const head = `<div class="card ckhead ${ckBack ? 'past' : ''}">
+    <div class="ckdate"><button class="rbtn small" data-act="ckDay" data-d="1" ${ckBack >= 7 ? 'disabled' : ''} aria-label="Vorheriger Tag">${ICON.back}</button>
+      <span><b>${label}</b> · ${parseKey(k).toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'short' })}</span>
+      ${ckBack ? `<button class="rbtn small fwd" data-act="ckDay" data-d="-1" aria-label="Nächster Tag">${ICON.back}</button>` : '<span class="sp"></span>'}</div>
+    <div class="row"><span class="face">${avatarSvg(c, cosmeticOf(c.id), 56, true)}</span>
+      <div class="grow"><div class="big">${due.length ? `${doneN} von ${due.length} erledigt` : 'Freier Tag'}</div>
+        ${due.length ? `<div class="pbar big"><i style="width:${(doneN / due.length) * 100}%"></i></div>` : ''}
+        <div class="say">${esc(say)}</div></div></div></div>`;
+
+  // Offene Gewohnheiten nach Tageszeit
+  const used = SLOTS.filter(([id]) => open.some((h) => slotOf(h) === id));
+  const sections = used.map(([id, e, name]) => {
+    const hs = open.filter((h) => slotOf(h) === id);
+    // Nur „Jederzeit“ übrig: kein Abschnittstitel nötig
+    const title = used.length > 1 || id !== 'any' ? `<div class="slothead">${e} ${name}${id === now ? '<span class="nowpill">jetzt</span>' : ''}</div>` : '';
+    return title + hs.map((h) => habitRow(h, k, { next: h === nextH })).join('');
+  }).join('');
+
+  // Nur die nächste Quest-Aufgabe, der Rest liegt im Quests-Tab
+  const tasks = [];
+  if (!ckBack) for (const q of activeQuests()) for (const s of goalOf(q).subs) { const r = q.subs[s.key]; if (r && r.state === 'active' && s.type !== 'habit') tasks.push([q, s]); }
+  const taskHtml = tasks.length ? `<div class="slothead">🎯 Quest-Aufgabe</div>${subRow(...tasks[0])}${tasks.length > 1 ? `<button class="linkbtn" data-act="ckTab" data-t="quests">+${tasks.length - 1} weitere unter „Quests“</button>` : ''}` : '';
+
+  const paused = S.habits.filter((h) => h.paused);
+  const empty = !active.length ? `<div class="card empty"><div class="pv">${avatarSvg(byId(CHARACTERS, 'lisa'), null, 80)}</div><p><b>Noch keine Gewohnheiten.</b><br>Lass dir von Lisa Quests bauen oder leg selbst los.</p>
+    ${S.quests?.length ? '' : '<button class="btn pink block" data-act="qzStart">Quests einrichten</button>'}</div>` : '';
+  return `${pageHead('Check-in')}${checkinTabs()}${head}${empty}${sections}${taskHtml}
+    ${handled.length ? foldGroup('Abgehakt', '✓', 'Abgehakt', handled.length, handled.map((h) => habitRow(h, k, { compact: true })).join(''), false) : ''}
+    ${free.length ? foldGroup('Heute frei', '🛋', ckBack ? 'An diesem Tag frei' : 'Heute frei', free.length, free.map((h) => habitRow(h, k, { compact: true })).join(''), true) : ''}
+    ${paused.length && !ckBack ? foldGroup('Pausiert', '⏸', 'Pausiert', paused.length, paused.map((h) => `<div class="card row paused"><span style="font-size:24px">${h.emoji}</span><b class="grow">${esc(h.name)}</b><button class="btn small" data-act="hResume" data-id="${h.id}">${ic('play', 14)} Fortsetzen</button></div>`).join(''), true) : ''}
+    ${active.length && !S.quests?.length ? `<button class="card questcta" data-act="qzStart"><span style="font-size:30px">🗺️</span><span class="grow"><b>Quests einrichten</b><br><span class="small muted">Lisa baut dir Ziele mit Methoden aus Studien.</span></span></button>` : ''}
+    <button class="btn white block" data-act="newHabit">＋ Eigene Gewohnheit</button>
+    <p class="small muted center">Wischen geht auch: rechts = erledigt, links = heute nicht.</p>`;
+}
+// Detail-Sheet: alle selteneren Aktionen und Infos zu einer Gewohnheit
+function habitSheet(h) {
+  const k = ckKey(), st = status(h, k), s = streak(h);
+  const bonus = h.schedule.type === 'weekly' ? 0 : streakBonus(s + (finished(st) ? 0 : 1));
+  const [d] = rewardOf('done', h), [dm] = rewardOf('min', h);
+  const q = questOfHabit(h), sq = q && subOf(q, h.sub), host = hostOf(h);
+  const opt = (val, label, hint) => `<button class="bigopt ${val} ${st === val ? 'on' : ''}" data-act="hsSheet" data-id="${h.id}" data-st="${val}"><span class="l">${label}</span><span class="h">${st === val ? 'Zurücksetzen' : hint}</span></button>`;
+  openModal(`<div class="row hsh"><div class="badge"><span class="emo">${h.emoji}</span><span class="host">${avatarSvg(host, cosmeticOf(host.id), 30, true)}</span></div>
+      <div class="grow"><h2 style="margin:0">${esc(h.name)}</h2><div class="small muted">${schedLabel(h)}${h.remind ? ` · ⏰ ${h.remind}` : ''}${h.diff ? ` · ${DIFF[h.diff].label}` : ''}</div></div></div>
+    ${h.cue ? `<div class="woop"><b>Wenn-dann:</b> ${esc(h.cue)} → ${esc(h.name)}.</div>` : ''}
+    <div class="bigopts">
+      ${opt('done', `${ic('check')} Erledigt`, `+${d + bonus} 🍩`)}
+      ${h.minimum ? opt('min', `½ Minimum: ${esc(h.minimum)}`, `+${dm + bonus} 🍩`) : ''}
+      ${opt('skip', `${ic('cross')} Heute nicht`, 'kein Abzug')}
+    </div>
+    <div class="row small hstats"><span>🔥 Streak <b>${s}</b></span><span>🏆 Beste <b>${bestStreak(h)}</b></span>${h.schedule.type === 'weekly' ? '' : `<span>Bonus <b>+${streakBonus(s)}</b> 🍩</span>`}</div>
+    ${weekDots(h, k, true)}
+    <div class="row" style="margin-top:16px">${sq ? `<button class="btn white grow" data-act="subOpen" data-q="${q.id}" data-k="${sq.key}">🏆 Quest</button>` : ''}
+      <button class="btn white grow" data-act="editHabit" data-id="${h.id}">✍ Bearbeiten</button><button class="btn secondary grow" data-act="close">Schließen</button></div>`);
 }
 
 // Wischen: rechts = erledigt, links = nicht gemacht
 let swipe = null, swipeBlock = false;
 document.addEventListener('pointerdown', (e) => {
   const card = e.target.closest('.hswipe .hc');
-  if (!card || e.target.closest('.checks')) return;
+  if (!card || e.target.closest('.checks, .ckbtn')) return;
   swipe = { card, id: card.parentNode.dataset.id, x: e.clientX, y: e.clientY, dx: 0, on: false };
 });
 document.addEventListener('pointermove', (e) => {
@@ -881,9 +907,10 @@ const actions = {
   },
   // Gewohnheiten
   ckDay: (d) => { ckBack = Math.max(0, Math.min(7, ckBack + +d.d)); render(); },
-  ckFilter: (d) => { ckFilter = d.f; render(); },
-  ckFold: (d) => { S.ui = S.ui || {}; S.ui.fold = S.ui.fold || {}; const f = S.ui.fold; f[d.g] = !(f[d.g] ?? (d.g === 'Heute frei' || d.g === 'Pausiert')); save(); render(); },
+  ckFold: (d) => { S.ui = S.ui || {}; S.ui.fold = S.ui.fold || {}; const f = S.ui.fold; f[d.g] = !(f[d.g] ?? d.def === '1'); save(); render(); },
   hs: (d) => { const h = byId(S.habits, d.id); setStatus(h, ckKey(), d.st); render(); },
+  hSheet: (d) => habitSheet(byId(S.habits, d.id)),
+  hsSheet: (d) => { const h = byId(S.habits, d.id); setStatus(h, ckKey(), d.st); closeModal(); render(); },
   newHabit: () => habitForm(null),
   editHabit: (d) => habitForm(byId(S.habits, d.id)),
   hfEmoji: (d) => { readHabitForm(); draft.emoji = d.e; drawHabitForm(); },
