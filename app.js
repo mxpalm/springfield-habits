@@ -360,6 +360,7 @@ function homeHtml() {
 
 function render() {
   const page = $('#page'), home = $('#homeui');
+  resetViewport();
   page.classList.toggle('focusmode', tab === 'focus' && S.started);
   document.body.classList.toggle('on-home', tab === 'home' && S.started);
   if (!S.started) {
@@ -849,6 +850,7 @@ const actions = {
   obPick: (d) => { S.main = d.id; const n = $('#ob-name').value; render(); $('#ob-name').value = n; },
   obStart: () => {
     S.name = $('#ob-name').value.trim() || 'Du';
+    $('#ob-name').blur();
     S.started = true; unlockChar(S.main);
     S.map = freshMap(); placeStarter(); World.reset();
     quiz = { step: 0, a: {} }; tab = 'quiz';
@@ -980,6 +982,16 @@ document.addEventListener('change', (e) => {
 document.addEventListener('input', (e) => { if (e.target.id === 'fnote' && run()) { run().note = e.target.value; save(); } });
 document.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.id === 'todoin') actions.todoAdd(); });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) { if (S.lastCheck < addDays(today(), -1)) processMissedDays(); tickClock(); if (!run()) document.title = 'Springfield Habits'; } });
+
+// iOS (Home-Bildschirm-App): Nach dem Schließen der Tastatur bleibt die Seite manchmal verschoben,
+// unten blitzt dann ein Streifen durch. Fokus lösen und zurückscrollen behebt das.
+function resetViewport() {
+  const a = document.activeElement;
+  if (a && /^(INPUT|TEXTAREA)$/.test(a.tagName) && !document.body.contains(a)) a.blur();
+  if (window.scrollY || document.documentElement.scrollTop || document.body.scrollTop) { window.scrollTo(0, 0); document.body.scrollTop = 0; }
+}
+document.addEventListener('focusout', (e) => { if (/^(INPUT|TEXTAREA)$/.test(e.target.tagName)) setTimeout(resetViewport, 80); });
+window.visualViewport?.addEventListener('resize', () => setTimeout(resetViewport, 80));
 
 /* ---------- Start (aufgerufen von world.js) ---------- */
 function boot() {

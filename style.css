@@ -23,7 +23,7 @@
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { margin: 0; height: 100%; overflow: hidden; }
-body { background: #2f8fd6; overscroll-behavior: none; -webkit-user-select: none; user-select: none; }
+body { background: var(--sky2); overscroll-behavior: none; -webkit-user-select: none; user-select: none; }
 input, textarea, select, button { font: inherit; color: inherit; }
 textarea, input[type=text], input[type=number] { -webkit-user-select: text; user-select: text; }
 button { cursor: pointer; }
