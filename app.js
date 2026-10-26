@@ -361,6 +361,7 @@ function homeHtml() {
 function render() {
   const page = $('#page'), home = $('#homeui');
   resetViewport();
+  setEdge(!S.started ? EDGE.page : tab === 'home' ? EDGE.world : tab === 'focus' ? EDGE.focus : EDGE.page);
   page.classList.toggle('focusmode', tab === 'focus' && S.started);
   document.body.classList.toggle('on-home', tab === 'home' && S.started);
   if (!S.started) {
@@ -982,6 +983,26 @@ document.addEventListener('change', (e) => {
 document.addEventListener('input', (e) => { if (e.target.id === 'fnote' && run()) { run().note = e.target.value; save(); } });
 document.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.id === 'todoin') actions.todoAdd(); });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) { if (S.lastCheck < addDays(today(), -1)) processMissedDays(); tickClock(); if (!run()) document.title = 'Springfield Habits'; } });
+
+// iOS (Home-Bildschirm-App): innerHeight ist dort teils kürzer als der Bildschirm, unten bleibt ein Streifen.
+// Als installierte App nehmen wir deshalb die Bildschirmhöhe.
+const standalone = navigator.standalone || matchMedia('(display-mode: standalone)').matches;
+function appHeight() {
+  const h = window.innerHeight;
+  if (!standalone || !window.screen) return h;
+  const s = innerWidth > innerHeight ? Math.min(screen.width, screen.height) : Math.max(screen.width, screen.height);
+  return Math.max(h, s);
+}
+const fitViewport = () => document.documentElement.style.setProperty('--appH', appHeight() + 'px');
+fitViewport();
+window.addEventListener('resize', fitViewport);
+// Randfarbe (Statusleiste, Ränder) passend zum Bildschirm: Wasser auf der Karte, Himmel auf den Seiten.
+const EDGE = { world: '#2f8fd6', page: '#a8dcff', focus: '#1b456f' };
+function setEdge(c) {
+  document.documentElement.style.background = c;
+  const m = $('meta[name="theme-color"]');
+  if (m && m.content !== c) m.content = c;
+}
 
 // iOS (Home-Bildschirm-App): Nach dem Schließen der Tastatur bleibt die Seite manchmal verschoben,
 // unten blitzt dann ein Streifen durch. Fokus lösen und zurückscrollen behebt das.

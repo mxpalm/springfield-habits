@@ -163,7 +163,7 @@ const World = (() => {
   /* --- Zeichnen --- */
   function resize() {
     dpr = Math.min(window.devicePixelRatio || 1, 2.5);
-    W = window.innerWidth; H = window.innerHeight;
+    W = window.innerWidth; H = appHeight();
     cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
     cv.style.width = W + 'px'; cv.style.height = H + 'px';
   }
