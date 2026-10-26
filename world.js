@@ -371,11 +371,11 @@ const World = (() => {
       }
       if (B.paint) return;
       const o = pickObject(sx, sy);
-      if (o) { B.ghost = { item: o.item, x: o.x, y: o.y, flip: o.flip, uid: o.uid, ox: o.x, oy: o.y }; sound('start'); ui(); }
+      if (o) { B.ghost = { item: o.item, x: o.x, y: o.y, flip: o.flip, uid: o.uid, ox: o.x, oy: o.y }; sound('pickup'); ui(); }
       return;
     }
     const id = pickWalker(sx, sy);
-    if (id) { talk = { id, text: pick(byId(CHARACTERS, id).lines), until: performance.now() + 2800 }; walkers[id].wait = 2800; return; }
+    if (id) { talk = { id, text: pick(byId(CHARACTERS, id).lines), until: performance.now() + 2800 }; walkers[id].wait = 2800; sound('talk', id, talk.text); return; }
     const o = pickObject(sx, sy);
     if (o) {
       const it = byId(ITEMS, o.item);
@@ -460,7 +460,7 @@ const World = (() => {
         S.map.objects.push({ uid: uid(), item: g.item, x: g.x, y: g.y, flip: g.flip });
         if (--S.inventory[g.item] <= 0) delete S.inventory[g.item];
       }
-      B.ghost = null; sound('buy'); save(); ui();
+      B.ghost = null; sound('place'); save(); ui();
     },
   });
 

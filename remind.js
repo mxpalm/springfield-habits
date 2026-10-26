@@ -53,7 +53,7 @@ function remindTick() {
     if (h.schedule.type === 'weekly' && weekCount(h, weekStart(t)) >= h.schedule.n) continue;
     fire(`${t}|${h.id}`, h.remind, () => {
       const c = hostOf(h);
-      if (seen) toast(`⏰ ${c.name}: Zeit für „${h.name}“!`);
+      if (seen) { sound('remind'); toast(`⏰ ${c.name}: Zeit für „${h.name}“!`); }
       else notify(h.name, `${c.name}: ${h.cue ? `${h.cue} → ${h.name}.` : pick(c.lines)}`, `h-${h.id}`);
     });
   }
@@ -61,7 +61,7 @@ function remindTick() {
     const open = S.habits.filter((h) => !h.archived && isDue(h, t) && h.schedule.type !== 'weekly' && !status(h, t));
     if (!open.length) return;
     const msg = `Noch ${open.length} offen: ${open.slice(0, 3).map((h) => h.name).join(', ')}${open.length > 3 ? ' …' : ''}`;
-    if (seen) toast(`🌙 ${msg}`);
+    if (seen) { sound('remind'); toast(`🌙 ${msg}`); }
     else notify(`${mainChar().name}: Check-in nicht vergessen!`, msg, 'evening');
   });
   if (!changed) return;

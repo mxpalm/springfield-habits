@@ -202,19 +202,19 @@ function questCheck() {
     const g = goalOf(q);
     for (const s of g.subs) {
       const r = q.subs[s.key];
-      if (r && r.state === 'active' && s.type === 'habit' && subProgress(q, s) >= 1) { r.state = 'done'; r.doneAt = today(); toast(`🏅 Unterquest gemeistert: ${s.title}`); }
+      if (r && r.state === 'active' && s.type === 'habit' && subProgress(q, s) >= 1) { r.state = 'done'; r.doneAt = today(); sound('sub'); toast(`🏅 Unterquest gemeistert: ${s.title}`); }
     }
     if (stageProgress(q) < 1) continue;
     const name = g.stages[q.stage].name;
     if (q.stage + 1 < g.stages.length) {
-      q.stage++; activateStage(q);
+      q.stage++; activateStage(q); sound('chapter');
       reward(STAGE_REWARD[0], STAGE_REWARD[1], `📗 Kapitel geschafft: ${name}! +${STAGE_REWARD[0]} 🍩`);
     } else {
       q.status = 'done'; q.doneAt = today();
       const locked = CHARACTERS.filter((c) => !S.chars[c.id]), c = locked.length ? pick(locked) : null;
       if (c) unlockChar(c.id);
       reward(QUEST_REWARD[0], QUEST_REWARD[1]);
-      sound('level');
+      sound('quest');
       openModal(`<div class="reveal"><div style="font-size:60px">🏆</div><h2>Hauptquest geschafft!</h2><p><b>${esc(g.name)}</b><br>+${QUEST_REWARD[0]} Donuts · +${QUEST_REWARD[1]} XP</p>
         ${c ? `<div class="card" style="background:#fffbe0"><div class="pv">${avatarSvg(c, null, 90)}</div><h3>${esc(c.name)} zieht nach Springfield!</h3></div>` : ''}
         <p class="small muted">Deine Gewohnheiten laufen weiter – jetzt sind sie Teil von dir.</p></div>

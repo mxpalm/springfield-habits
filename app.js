@@ -33,7 +33,7 @@ function freshState() {
     map: { v: 2, G: WORLD_G, plot: LAND[0].size, tiles: {}, objects: [] },
     chars: {}, // id -> { cosmetic, home: true }
     lastCheck: today(),
-    settings: { strict: false, sound: true, focusMin: 25, breakMin: 5, hardcore: false, stopwatch: false },
+    settings: { strict: false, sound: true, vol: 0.7, music: false, focusMin: 25, breakMin: 5, hardcore: false, stopwatch: false },
   };
 }
 let S;
@@ -151,7 +151,12 @@ function setStatus(h, k, st) {
   if (next) S.log[h.id][k] = next; else delete S.log[h.id][k];
   const sb = sbOf() - sbOld;
   const [od, ox] = rewardOf(old, h), [nd0, nx] = rewardOf(next, h), nd = nd0 + sb;
-  if (next === 'done') sound('done');
+  if (okStatus(next) || next === 'min') {
+    // Kombo: jede weitere erledigte Gewohnheit klingt höher, die letzte des Tages bekommt die Fanfare
+    const due = S.habits.filter((x) => !x.archived && isDue(x, k)), fin = (x) => okStatus(status(x, k)) || status(x, k) === 'min';
+    const n = due.filter(fin).length;
+    sound(n === due.length && n > 1 ? 'allDone' : next === 'min' ? 'min' : 'done', n);
+  } else sound(next === 'skip' ? 'skip' : 'undo');
   // Comeback-Bonus einmal pro Tag und Gewohnheit
   const cb = okStatus(next) && !okStatus(old) && !(h.comeback || []).includes(k) ? comebackBonus(h, k) : 0;
   if (cb) h.comeback = [...(h.comeback || []).slice(-20), k];
@@ -178,6 +183,7 @@ function processMissedDays() {
       if (S.freezes > 0 && streakBack(h, addDays(k, -1)) > 0) {
         S.freezes--;
         (S.freezeUsed[h.id] = S.freezeUsed[h.id] || []).push(k);
+        sound('freeze');
         toast(`🧊 Squishee-Freeze hat „${h.name}“ am ${parseKey(k).toLocaleDateString('de-DE')} gerettet!`);
       }
     }
@@ -229,7 +235,7 @@ function finishFocus(completed) {
   if (!r) return;
   S.focusRun = null; wakeLock(false);
   if (completed) remindFocusDone(r);
-  if (r.phase === 'break') { save(); sound('done'); toast('Pause vorbei – weiter geht’s!'); render(); return; }
+  if (r.phase === 'break') { save(); sound('breakDone'); toast('Pause vorbei – weiter geht’s!'); render(); return; }
   const ms = completed && !r.stopwatch ? r.planned : elapsedMs(r);
   const minutes = Math.floor(ms / 60000);
   const sess = { start: r.start, end: Date.now(), minutes, hardcore: r.hardcore, completed, note: r.note, donuts: 0 };
@@ -238,6 +244,7 @@ function finishFocus(completed) {
     sess.minutes = 0; sess.donuts = -10;
     S.sessions.push(sess);
     reward(-10, 0);
+    sound('fail');
     html = `<div class="reveal"><div style="font-size:64px">💥</div><h2>D’oh! Hardcore abgebrochen</h2><p class="muted">Keine Belohnung und −10 🍩 Strafe.</p></div>`;
   } else if (minutes < 1) {
     save();
@@ -250,7 +257,7 @@ function finishFocus(completed) {
     const c = rollCharacter(minutes);
     if (c) unlockChar(c.id);
     reward(d, minutes);
-    sound('done');
+    sound(c ? 'unlock' : 'focusDone');
     html = `<div class="reveal"><div style="font-size:56px">🍩</div><h2>${minutes} Minuten fokussiert!</h2>
       <p>+${d} Donuts · +${minutes} XP${r.hardcore ? ' · Hardcore ×1,5' : ''}</p>
       ${c ? `<div class="card" style="background:#fffbe0"><div class="pv">${avatarSvg(c, null, 90)}</div>
@@ -271,23 +278,6 @@ async function wakeLock(on) {
 }
 const fmtMs = (ms) => { const s = Math.max(0, Math.round(ms / 1000)); const h = Math.floor(s / 3600); return (h ? h + ':' + pad(Math.floor(s / 60) % 60) : pad(Math.floor(s / 60))) + ':' + pad(s % 60); };
 const minutesToday = (k = today()) => S.sessions.filter((s) => keyOf(new Date(s.start)) === k).reduce((a, s) => a + s.minutes, 0);
-
-/* ---------- Sound ---------- */
-let ac;
-function sound(kind) {
-  if (!S.settings.sound) return;
-  try {
-    ac = ac || new (window.AudioContext || window.webkitAudioContext)();
-    const notes = { done: [660, 880], start: [520], level: [523, 659, 784, 1047], buy: [880, 1320], unlock: [523, 784, 1047] }[kind] || [600];
-    notes.forEach((f, i) => {
-      const o = ac.createOscillator(), g = ac.createGain();
-      o.type = 'triangle'; o.frequency.value = f;
-      const t = ac.currentTime + i * 0.11;
-      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.18, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
-      o.connect(g).connect(ac.destination); o.start(t); o.stop(t + 0.25);
-    });
-  } catch { /* kein Audio */ }
-}
 
 /* ---------- Herausforderungen ---------- */
 function seeded(seed) { let x = 0; for (const ch of seed) x = (x * 31 + ch.charCodeAt(0)) >>> 0; return () => ((x = (x * 1664525 + 1013904223) >>> 0) / 2 ** 32); }
@@ -363,6 +353,7 @@ function render() {
   resetViewport();
   setEdge(!S.started ? EDGE.page : tab === 'home' ? EDGE.world : tab === 'focus' ? EDGE.focus : EDGE.page);
   page.classList.toggle('focusmode', tab === 'focus' && S.started);
+  Snd.music(tab === 'home' && S.started);
   document.body.classList.toggle('on-home', tab === 'home' && S.started);
   if (!S.started) {
     page.hidden = false; page.innerHTML = onboardingHtml(); home.hidden = true; $('#hud').innerHTML = '';
@@ -715,7 +706,7 @@ function shopView() {
 }
 
 function moreView() {
-  if (sub) return ({ stats: statsView, journal: journalView, todos: todosView, challenges: challengesView, chars: charsView, settings: settingsView, remind: remindView }[sub])();
+  if (sub) return ({ stats: statsView, journal: journalView, todos: todosView, challenges: challengesView, chars: charsView, settings: settingsView, remind: remindView, sounds: soundsView }[sub])();
   const n = openChallenges();
   const items = [['challenges', '🎯', 'Tägliche Herausforderungen', n ? `<span class="badge">${n}</span>` : ''], ['chars', '👨‍👩‍👧‍👦', 'Figuren & Kosmetik', `<span class="small muted" style="margin-left:auto">${unlocked().length}/${CHARACTERS.length}</span>`],
     ['stats', '📊', 'Statistiken', ''], ['journal', '📓', 'Tagebuch', ''], ['todos', '📝', 'To-do-Liste', ''], ['remind', '🔔', 'Erinnerungen', `<span class="small muted" style="margin-left:auto">${remindSettings().on ? 'An' : 'Aus'}</span>`], ['settings', '⚙️', 'Einstellungen & Backup', '']];
@@ -820,14 +811,33 @@ function settingsView() {
   return `${back('Einstellungen')}
     <div class="card"><label class="f" style="margin-top:0">Dein Name</label><input class="in" id="setname" type="text" value="${esc(S.name)}" maxlength="20">
       <div class="toggle"><span><b>Strikte Streak</b><br><span class="small muted">Minimum zählt nicht für die Streak</span></span><label class="switch"><input type="checkbox" data-act="set" data-k="strict" ${st.strict ? 'checked' : ''}><span></span></label></div>
-      <div class="toggle"><span><b>Töne</b></span><label class="switch"><input type="checkbox" data-act="set" data-k="sound" ${st.sound ? 'checked' : ''}><span></span></label></div>
       <div class="toggle"><span><b>Pausenlänge</b></span><input class="in" id="setbreak" type="number" min="1" max="30" value="${st.breakMin}" style="width:80px"></div>
       <button class="btn block" data-act="saveSettings">Speichern</button></div>
+    <div class="card"><h3>Töne & Musik</h3>
+      <div class="toggle"><span><b>Töne</b><br><span class="small muted">Jingles beim Abhaken, Level-Up, Kaufen …</span></span><label class="switch"><input type="checkbox" data-act="set" data-k="sound" ${st.sound ? 'checked' : ''}><span></span></label></div>
+      <div class="toggle"><span><b>Lautstärke</b></span><input class="range" id="setvol" type="range" min="0" max="100" step="5" value="${Math.round(st.vol * 100)}" ${st.sound ? '' : 'disabled'}></div>
+      <div class="toggle"><span><b>Stadtmusik</b><br><span class="small muted">Leiser Jazz, solange du auf der Karte bist</span></span><label class="switch"><input type="checkbox" data-act="set" data-k="music" ${st.music ? 'checked' : ''} ${st.sound ? '' : 'disabled'}><span></span></label></div>
+      <button class="btn secondary block" data-act="sub" data-s="sounds">▶ Alle Sounds anhören</button>
+      <p class="small muted" style="margin-bottom:0">iPhone: Stummschalter aus, sonst bleibt alles still.</p></div>
     <div class="card"><h3>Backup</h3><p class="small muted">Alle Daten liegen nur auf diesem Gerät. Exportiere ab und zu ein Backup.</p>
       <div class="row"><button class="btn secondary grow" data-act="export">⬇ Export</button><label class="btn secondary grow center">⬆ Import<input type="file" id="importfile" accept="application/json" hidden></label></div></div>
     <div class="card"><h3>Bildschirm-Test</h3><p class="small muted">Zeigt Messwerte und ein Streifenmuster bis zum unteren Rand. Hilft bei Darstellungsfehlern.</p><button class="btn secondary" data-act="screenTest">Test starten</button></div>
     <div class="card"><h3>Neustart</h3><p class="small muted">Löscht alles: Gewohnheiten, Stadt, Donuts.</p><button class="btn red" data-act="reset">Spiel zurücksetzen</button></div>
     <p class="small muted center">Private Fan-Version für den Eigengebrauch. Nicht verbunden mit den Rechteinhabern der Simpsons.</p>`;
+}
+
+const SOUND_NAMES = { done: 'Abgehakt', min: 'Minimum', skip: 'Übersprungen', undo: 'Rückgängig', allDone: 'Alles geschafft', level: 'Level-Up',
+  sub: 'Unterquest', chapter: 'Kapitel', quest: 'Hauptquest', buy: 'Gekauft', place: 'Gebaut', pickup: 'Hochgehoben', start: 'Fokus-Start',
+  focusDone: 'Fokus fertig', breakDone: 'Pause vorbei', unlock: 'Neue Figur', fail: 'Hardcore weg', remind: 'Erinnerung',
+  freeze: 'Squishee-Freeze', intro: 'Titelmelodie', tap: 'Tippen' };
+function soundsView() {
+  const combo = [1, 3, 5, 8].map((n) => `<button class="btn small secondary" data-act="playSnd" data-k="done" data-n="${n}">${n}.</button>`).join('');
+  return `${back('Sounds')}
+    <div class="card"><p class="small muted" style="margin-top:0">Alle Töne sind eigene Melodien, live im Gerät erzeugt. ${S.settings.sound ? '' : '<b>Töne sind gerade aus.</b>'}</p>
+      <div class="sndgrid">${Object.keys(SOUND_NAMES).map((k) => `<button class="btn secondary" data-act="playSnd" data-k="${k}">▶ ${SOUND_NAMES[k]}</button>`).join('')}</div></div>
+    <div class="card"><h3>Kombo beim Abhaken</h3><p class="small muted">Jede weitere erledigte Gewohnheit am Tag klingt etwas höher.</p><div class="row">${combo}</div></div>
+    <div class="card"><h3>Stimmen</h3><p class="small muted">Tippe auf eine Figur in der Stadt, dann plappert sie.</p>
+      <div class="row wrap">${unlocked().map((c) => `<button class="btn small secondary" data-act="playTalk" data-id="${c.id}">${esc(c.name)}</button>`).join('')}</div></div>`;
 }
 
 /* ---------- Modal & Toast ---------- */
@@ -844,11 +854,11 @@ function toast(msg) {
 
 /* ---------- Aktionen ---------- */
 const actions = {
-  tab: (d) => { tab = d.tab; sub = null; closeModal(); render(); $('#page').scrollTop = 0; },
+  tab: (d) => { sound('tap'); tab = d.tab; sub = null; closeModal(); render(); $('#page').scrollTop = 0; },
   sub: (d) => { sub = d.s || null; render(); $('#page').scrollTop = 0; },
   close: () => closeModal(),
   noop: () => toast('Noch nicht freigeschaltet – fokussiere, um sie zu finden!'),
-  sayMain: () => sayAt($('#hud .me'), pick(mainChar().lines)),
+  sayMain: () => { const t = pick(mainChar().lines); sayAt($('#hud .me'), t); sound('talk', S.main, t); },
   obPick: (d) => { S.main = d.id; const n = $('#ob-name').value; render(); $('#ob-name').value = n; },
   obStart: () => {
     S.name = $('#ob-name').value.trim() || 'Du';
@@ -856,7 +866,7 @@ const actions = {
     S.started = true; unlockChar(S.main);
     S.map = freshMap(); placeStarter(); World.reset();
     quiz = { step: 0, a: {} }; tab = 'quiz';
-    save(); render();
+    save(); render(); sound('intro');
   },
   // Gewohnheiten
   ckDay: (d) => { ckBack = Math.max(0, Math.min(7, ckBack + +d.d)); render(); },
@@ -916,11 +926,11 @@ const actions = {
     const l = LAND.find((x) => x.size === +d.id);
     if (S.donuts < l.price) return;
     S.donuts -= l.price; S.map.plot = l.size; World.invalidate(); World.centerCam();
-    sound('level'); save(); toast(`Springfield ist jetzt ${l.size}×${l.size} groß!`); render();
+    sound('chapter'); save(); toast(`Springfield ist jetzt ${l.size}×${l.size} groß!`); render();
   },
   buyFreeze: () => { if (S.donuts < FREEZE_PRICE) return; S.donuts -= FREEZE_PRICE; S.freezes++; sound('buy'); save(); render(); },
   // Mehr
-  claim: (d) => { const c = S.challenges.list[+d.i]; if (c.claimed || challengeProgress(c) < c.target) return; c.claimed = true; reward(c.reward, 0, `Herausforderung geschafft! +${c.reward} 🍩`); render(); },
+  claim: (d) => { const c = S.challenges.list[+d.i]; if (c.claimed || challengeProgress(c) < c.target) return; c.claimed = true; sound('chapter'); reward(c.reward, 0, `Herausforderung geschafft! +${c.reward} 🍩`); render(); },
   charSheet: (d) => charSheet(d.id),
   equip: (d) => { S.chars[d.id].cosmetic = d.c || null; save(); charSheet(d.id); render(); },
   setMain: (d) => { S.main = d.id; save(); charSheet(d.id); render(); },
@@ -938,7 +948,7 @@ const actions = {
   todoAdd: () => { const v = $('#todoin').value.trim(); if (!v) return; S.todos.push({ id: uid(), text: v, done: false, rewarded: false }); save(); render(); $('#todoin').focus(); },
   todoToggle: (d) => {
     const x = byId(S.todos, d.id); x.done = !x.done; x.doneAt = x.done ? today() : null;
-    if (x.done && !x.rewarded) { x.rewarded = true; reward(REWARDS.todo, 1, `+${REWARDS.todo} 🍩`); } else save();
+    if (x.done && !x.rewarded) { x.rewarded = true; sound('min'); reward(REWARDS.todo, 1, `+${REWARDS.todo} 🍩`); } else save();
     render();
   },
   todoDel: (d) => { S.todos = S.todos.filter((x) => x.id !== d.id); save(); render(); },
@@ -955,6 +965,8 @@ const actions = {
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   },
+  playSnd: (d) => { if (!S.settings.sound) return toast('Töne sind aus (Einstellungen).'); Snd.unlock(); sound(d.k, +d.n || 1); },
+  playTalk: (d) => { if (!S.settings.sound) return; Snd.unlock(); const c = byId(CHARACTERS, d.id); sayAt($('#hud .me'), pick(c.lines)); sound('talk', c.id, 'x'.repeat(30)); },
   screenTest: () => {
     const probe = (u) => { lvhProbe.style.height = '100' + u; const v = lvhProbe.offsetHeight; lvhProbe.style.height = '100lvh'; return v; };
     const safe = (s) => { const d = document.createElement('div'); d.style.cssText = `position:fixed;top:0;height:env(safe-area-inset-${s})`; document.body.appendChild(d); const v = d.offsetHeight; d.remove(); return v; };
@@ -981,7 +993,8 @@ document.addEventListener('click', (e) => {
 });
 document.addEventListener('change', (e) => {
   const el = e.target;
-  if (el.dataset.act === 'set') { S.settings[el.dataset.k] = el.checked; if (el.dataset.k === 'stopwatch' && el.checked) S.settings.hardcore = false; save(); if (tab === 'focus') render(); }
+  if (el.dataset.act === 'set') { S.settings[el.dataset.k] = el.checked; if (el.dataset.k === 'stopwatch' && el.checked) S.settings.hardcore = false; save(); if (tab === 'focus' || el.dataset.k === 'sound') render(); if (el.dataset.k === 'sound' && el.checked) { Snd.unlock(); sound('done'); } }
+  if (el.id === 'setvol') { save(); sound('done', 3); }
   if (el.dataset.act === 'charHome') { S.chars[el.dataset.id].home = el.checked; save(); }
   if (el.id === 'importfile' && el.files[0]) {
     el.files[0].text().then((txt) => {
@@ -992,9 +1005,9 @@ document.addEventListener('change', (e) => {
     }).catch(() => toast('Datei konnte nicht gelesen werden.'));
   }
 });
-document.addEventListener('input', (e) => { if (e.target.id === 'fnote' && run()) { run().note = e.target.value; save(); } });
+document.addEventListener('input', (e) => { if (e.target.id === 'setvol') { S.settings.vol = +e.target.value / 100; Snd.setVol(); } if (e.target.id === 'fnote' && run()) { run().note = e.target.value; save(); } });
 document.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.id === 'todoin') actions.todoAdd(); });
-document.addEventListener('visibilitychange', () => { if (!document.hidden) { if (S.lastCheck < addDays(today(), -1)) processMissedDays(); tickClock(); if (!run()) document.title = 'Springfield Habits'; } });
+document.addEventListener('visibilitychange', () => { Snd.music(tab === 'home' && S.started); if (!document.hidden) { if (S.lastCheck < addDays(today(), -1)) processMissedDays(); tickClock(); if (!run()) document.title = 'Springfield Habits'; } });
 
 // iOS: innerHeight endet über der (schwebenden) Suchleiste, in der Home-Bildschirm-App sogar über einer
 // Suchleiste, die es dort gar nicht gibt. Wir zeichnen deshalb bis zum unteren Bildschirmrand:
