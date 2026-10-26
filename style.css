@@ -143,6 +143,7 @@ a { color: #1f6fc0; }
 .seg::-webkit-scrollbar { display: none; }
 .seg button { flex: none; border: 3px solid var(--ink); background: #fffdf6; border-radius: var(--wob2); padding: 6px 14px 5px; font-weight: 900; font-size: 14px; box-shadow: 0 3px 0 var(--ink); }
 .seg button.on { background: var(--ink); color: #fff; }
+.seg.fill button { flex: 1 1 0; min-width: 0; padding: 6px 4px 5px; font-size: 13px; white-space: nowrap; }
 .seg button:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--ink); }
 
 /* ---------- Check-in / Gewohnheiten ---------- */
@@ -254,6 +255,9 @@ textarea.in { min-height: 140px; resize: vertical; }
 .sheet { background: var(--card); width: 100%; max-width: 560px; max-height: 88vh; overflow-y: auto; border: 3px solid var(--ink); border-bottom: 0; border-radius: 26px 30px 0 0;
   padding: 18px 16px calc(18px + env(safe-area-inset-bottom) + var(--barGap, 0px)); animation: up .2s ease-out; -webkit-user-select: text; user-select: text; }
 .sheet h2 { margin-top: 0; }
+/* Speichern bleibt bei langen Formularen unten sichtbar */
+.sheetbar { --pb: calc(18px + env(safe-area-inset-bottom) + var(--barGap, 0px)); position: sticky; bottom: calc(-1 * var(--pb)); z-index: 2;
+  margin: 12px -16px calc(-1 * var(--pb)); padding: 10px 16px var(--pb); background: var(--card); border-top: 2px solid rgba(0,0,0,.08); }
 @keyframes up { from { transform: translateY(40px); opacity: .5; } }
 #toasts { position: fixed; left: 0; right: 0; top: calc(env(safe-area-inset-top) + 100px); z-index: 60; display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none; padding: 0 16px; }
 .toast { background: #fffdf6; color: var(--ink); border: 3px solid var(--ink); border-radius: var(--wob2); padding: 9px 16px; font-weight: 900; font-size: 14px; max-width: 100%; box-shadow: 0 4px 0 var(--ink); animation: pop2 .2s ease-out; }
@@ -417,3 +421,4 @@ textarea.in { min-height: 140px; resize: vertical; }
 .rrow .emo { flex: none; width: 34px; font-size: 22px; text-align: center; }
 .rrow input[type=time] { flex: none; width: 112px; padding: 6px 8px; }
 .hc .tchip { font-weight: 900; font-size: 11.5px; background: #fff; color: var(--ink); border: 2px solid var(--ink); border-radius: 999px; padding: 0 6px; white-space: nowrap; }
+.card.paused { padding: 10px 12px; margin-bottom: 8px; gap: 10px; opacity: .85; }

@@ -52,7 +52,7 @@ function levelInfo(xp = S.xp) {
 }
 function reward(donuts, xp, msg) {
   const before = levelInfo().lvl;
-  S.donuts += donuts; S.xp = Math.max(0, S.xp + xp);
+  S.donuts = Math.max(0, S.donuts + donuts); S.xp = Math.max(0, S.xp + xp);
   const after = levelInfo().lvl;
   save();
   if (msg) toast(msg);
@@ -72,6 +72,8 @@ function isDue(h, k) {
   return true; // daily & weekly
 }
 const status = (h, k) => (S.log[h.id] || {})[k];
+// Wie isDue, aber eine wöchentliche Gewohnheit ist frei, sobald das Wochenziel erreicht ist
+const dueOn = (h, k) => isDue(h, k) && !(h.schedule.type === 'weekly' && !status(h, k) && weekCount(h, weekStart(k)) >= h.schedule.n);
 const okStatus = (st) => st === 'done' || (st === 'min' && !S.settings.strict);
 const frozen = (h, k) => (S.freezeUsed[h.id] || []).includes(k);
 
@@ -153,7 +155,7 @@ function setStatus(h, k, st) {
   const [od, ox] = rewardOf(old, h), [nd0, nx] = rewardOf(next, h), nd = nd0 + sb;
   if (okStatus(next) || next === 'min') {
     // Kombo: jede weitere erledigte Gewohnheit klingt höher, die letzte des Tages bekommt die Fanfare
-    const due = S.habits.filter((x) => !x.archived && isDue(x, k)), fin = (x) => okStatus(status(x, k)) || status(x, k) === 'min';
+    const due = S.habits.filter((x) => !x.archived && dueOn(x, k)), fin = (x) => okStatus(status(x, k)) || status(x, k) === 'min';
     const n = due.filter(fin).length;
     sound(n === due.length && n > 1 ? 'allDone' : next === 'min' ? 'min' : 'done', n);
   } else sound(next === 'skip' ? 'skip' : 'undo');
@@ -332,10 +334,10 @@ function renderHud() {
     </div>
     <button class="rbtn small gear" data-act="tab" data-tab="more" aria-label="Mehr & Einstellungen">${ICON.gear}</button>`;
 }
-const pageHead = (title, toSub = false) => `<div class="pagehead"><button class="rbtn small" ${toSub ? 'data-act="sub" data-s=""' : 'data-act="tab" data-tab="home"'} aria-label="Zurück">${ICON.back}</button><h1>${title}</h1></div>`;
+const pageHead = (title, toSub = false, parent = '') => `<div class="pagehead"><button class="rbtn small" ${toSub ? `data-act="sub" data-s="${parent}"` : 'data-act="tab" data-tab="home"'} aria-label="Zurück">${ICON.back}</button><h1>${title}</h1></div>`;
 
 function homeHtml() {
-  const t = today(), act = S.habits.filter((h) => !h.archived && isDue(h, t));
+  const t = today(), act = S.habits.filter((h) => !h.archived && dueOn(h, t));
   const done = act.filter((h) => okStatus(status(h, t))).length, c = mainChar(), r = run();
   return `<button class="todaychip" data-act="tab" data-tab="habits">📋 Heute ${done}/${act.length}${openChallenges() ? ' · 🎯' : ''}</button>
     <div class="homebar">
@@ -386,7 +388,7 @@ function onboardingHtml() {
 
 function todaySummary() {
   const t = today();
-  const act = S.habits.filter((h) => !h.archived && isDue(h, t));
+  const act = S.habits.filter((h) => !h.archived && dueOn(h, t));
   const done = act.filter((h) => okStatus(status(h, t))).length;
   return `${done}/${act.length} Gewohnheiten · ${minutesToday()} Fokus-Minuten`;
 }
@@ -417,7 +419,7 @@ function weekDots(h, k) {
   return `<div class="dots">${html}</div>`;
 }
 function habitCard(h, k) {
-  const st = status(h, k), due = isDue(h, k), s = streak(h), host = hostOf(h);
+  const st = status(h, k), due = dueOn(h, k), s = streak(h), host = hostOf(h);
   const wk = h.schedule.type === 'weekly' ? ` · ${weekCount(h, weekStart(k))}/${h.schedule.n} diese Woche` : '';
   const bonus = h.schedule.type === 'weekly' ? 0 : streakBonus(s);
   return `<div class="hswipe" data-id="${h.id}">
@@ -427,7 +429,7 @@ function habitCard(h, k) {
       <div class="grow body" data-act="editHabit" data-id="${h.id}">
         <div class="name">${esc(h.name)}</div>
         ${h.cue ? `<div class="cue">📍 ${esc(h.cue)}</div>` : ''}
-        <div class="meta">${h.remind ? `<span class="tchip">⏰ ${h.remind}</span> ` : ''}${h.diff ? `<span class="dchip ${DIFF[h.diff].cls}">${DIFF[h.diff].label}</span> ` : ''}${s ? `<span class="streak">🔥 ${s}</span> ` : ''}${bonus ? `<span class="sbonus">+${bonus} Bonus</span> ` : ''}${schedLabel(h)}${wk}${due ? '' : ' · heute frei'}</div>
+        <div class="meta">${h.remind ? `<span class="tchip">⏰ ${h.remind}</span> ` : ''}${h.diff ? `<span class="dchip ${DIFF[h.diff].cls}">${DIFF[h.diff].label}</span> ` : ''}${s ? `<span class="streak">🔥 ${s}</span> ` : ''}${bonus ? `<span class="sbonus">+${bonus} Bonus</span> ` : ''}${schedLabel(h)}${wk}${due ? '' : h.schedule.type === 'weekly' && isDue(h, k) ? ' · Wochenziel erreicht' : ' · heute frei'}</div>
         ${h.minimum ? `<div class="meta">½ ${esc(h.minimum)}</div>` : ''}
       </div>
       <div class="checks">
@@ -442,13 +444,13 @@ function habitsView() {
   if (checkTab === 'quests') return `${pageHead('Check-in')}${checkinTabs()}${questsView()}`;
   const active = S.habits.filter((h) => !h.archived && k >= h.created);
   const count = { todo: 0, done: 0, skip: 0 };
-  for (const h of active) if (isDue(h, k) || status(h, k)) count[filterOf(status(h, k))]++;
+  for (const h of active) if (dueOn(h, k) || status(h, k)) count[filterOf(status(h, k))]++;
   // Gruppen: aktive Quests zuerst, dann eigene Routinen
   const order = (S.quests || []).filter((q) => q.status === 'active').map((q) => goalOf(q).name);
   const groups = {}, free = [];
   for (const h of active) {
     const st = status(h, k);
-    if (!isDue(h, k) && !st) { if (ckFilter === 'todo') free.push(h); continue; }
+    if (!dueOn(h, k) && !st) { if (ckFilter === 'todo') free.push(h); continue; }
     if (filterOf(st) !== ckFilter) continue;
     const g = h.group || 'Eigene Gewohnheiten';
     (groups[g] = groups[g] || []).push(h);
@@ -456,7 +458,7 @@ function habitsView() {
   const rank = (g) => { const i = order.indexOf(g); return i < 0 ? 100 : i; };
   const fold = S.ui?.fold || {};
   const groupHtml = (g, hs, extra = '') => {
-    const all = active.filter((h) => (h.group || 'Eigene Gewohnheiten') === g && isDue(h, k));
+    const all = active.filter((h) => (h.group || 'Eigene Gewohnheiten') === g && dueOn(h, k));
     const ok = all.filter((h) => okStatus(status(h, k))).length;
     const shut = fold[g] ?? extra === 'free';
     const q = (S.quests || []).find((x) => goalOf(x).name === g);
@@ -480,9 +482,17 @@ function habitsView() {
     </div>
     <div class="seg filters">${[['todo', 'To-dos'], ['done', 'Erledigt'], ['skip', 'Übersprungen']].map(([f, l]) => `<button class="${ckFilter === f ? 'on' : ''}" data-act="ckFilter" data-f="${f}">${l} <span class="n">${count[f]}</span></button>`).join('')}</div>
     ${active.length ? list || empty : `<div class="card empty"><div style="font-size:48px">🛋️</div><p>Noch keine Gewohnheiten.<br>Leg deine erste an!</p></div>`}
-    ${ckBack === 0 && ckFilter === 'todo' ? openTasksHtml() : ''}
+    ${ckBack === 0 && ckFilter === 'todo' ? openTasksHtml() + pausedHtml() : ''}
     <button class="btn block" data-act="newHabit">＋ Eigene Gewohnheit</button>
     <p class="small muted center">Wisch nach rechts = erledigt, nach links = nicht gemacht · ½ = Minimum<br>Quest-Gewohnheiten: Leicht +${DIFF.easy.habit[0]} · Mittel +${DIFF.medium.habit[0]} · Schwer +${DIFF.hard.habit[0]} 🍩<br>Eigene +${REWARDS.habit} 🍩 · Streak-Bonus +1 🍩 je volle Woche (max. +5)</p>`;
+}
+
+function pausedHtml() {
+  const ps = S.habits.filter((h) => h.paused);
+  if (!ps.length) return '';
+  const shut = S.ui?.fold?.['Pausiert'] ?? true;
+  return `<div class="hgroup ${shut ? 'shut' : ''}"><button class="ghead" data-act="ckFold" data-g="Pausiert"><span class="gic">⏸</span><span class="grow">Pausiert</span><span class="gcount">${ps.length}</span><span class="chev">${ic('down', 18)}</span></button>
+    ${shut ? '' : ps.map((h) => `<div class="card row paused"><span style="font-size:24px">${h.emoji}</span><b class="grow">${esc(h.name)}</b><button class="btn small" data-act="hResume" data-id="${h.id}">${ic('play', 14)} Fortsetzen</button></div>`).join('')}</div>`;
 }
 
 // Wischen: rechts = erledigt, links = nicht gemacht
@@ -535,23 +545,24 @@ function drawHabitForm() {
     <label class="f">Name</label><input class="in" id="hf-name" type="text" value="${esc(d.name)}" placeholder="z. B. 2 Liter Wasser trinken" maxlength="40">
     <label class="f">Symbol</label><div class="emopick">${EMOJIS.map((e) => `<button class="${d.emoji === e ? 'on' : ''}" data-act="hfEmoji" data-e="${e}">${e}</button>`).join('')}</div>
     <label class="f">Wie oft?</label>
-    <div class="seg">${[['days', 'Wochentage'], ['interval', 'Alle N Tage'], ['weekly', 'N× pro Woche']].map(([t, l]) => `<button class="${sc.type === t ? 'on' : ''}" data-act="hfType" data-t="${t}">${l}</button>`).join('')}</div>
+    <div class="seg fill">${[['days', 'Wochentage'], ['interval', 'Alle N Tage'], ['weekly', 'N× / Woche']].map(([t, l]) => `<button class="${sc.type === t ? 'on' : ''}" data-act="hfType" data-t="${t}">${l}</button>`).join('')}</div>
     ${sc.type === 'days' ? `<div class="daypick">${DAYS.map((n, i) => `<button class="${sc.days.includes(i) ? 'on' : ''}" data-act="hfDay" data-i="${i}">${n}</button>`).join('')}</div>`
       : `<div class="row"><span>${sc.type === 'interval' ? 'Alle' : ''}</span><input class="in" id="hf-n" type="number" min="1" max="${sc.type === 'weekly' ? 7 : 30}" value="${sc.n}" style="width:90px"><span>${sc.type === 'interval' ? 'Tage' : 'mal pro Woche'}</span></div>`}
+    <label class="f">Wenn-dann: wann genau? (optional)</label><input class="in" id="hf-cue" type="text" value="${esc(d.cue || '')}" placeholder="z. B. Nach dem Zähneputzen am Morgen" maxlength="60">
     <label class="f">Minimum für schlechte Tage (optional)</label><input class="in" id="hf-min" type="text" value="${esc(d.minimum)}" placeholder="z. B. 1 Glas Wasser" maxlength="40">
     <label class="f">Erinnerung (optional)</label><div class="row"><input class="in" id="hf-remind" type="time" value="${esc(d.remind || '')}" style="width:140px">
       <span class="small muted grow">${remindSettings().on ? 'Leer lassen = keine Erinnerung' : 'Erinnerungen sind aus – einschalten unter Mehr → Erinnerungen.'}</span></div>
     <label class="f">Gruppe / Routine (optional)</label><input class="in" id="hf-group" type="text" list="hf-groups" value="${esc(d.group)}" placeholder="z. B. Morgenroutine" maxlength="24">
     <datalist id="hf-groups">${groups.map((g) => `<option value="${esc(g)}">`).join('')}</datalist>
-    <div class="row" style="margin-top:16px">
-      ${d.id ? `<button class="btn red small" data-act="hfDelete">Löschen</button>` : ''}
-      <span class="grow"></span><button class="btn secondary" data-act="close">Abbrechen</button><button class="btn" data-act="hfSave">Speichern</button></div>`);
+    ${d.id ? `<div class="row" style="margin-top:16px"><button class="btn white small" data-act="hfPause">${ic('pause', 16)} Pausieren</button><span class="grow"></span><button class="btn red small" data-act="hfDelete">Löschen</button></div>` : ''}
+    <div class="row sheetbar"><button class="btn secondary grow" data-act="close">Abbrechen</button><button class="btn grow" data-act="hfSave">Speichern</button></div>`);
 }
 function readHabitForm() {
   draft.name = $('#hf-name').value.trim();
   draft.minimum = $('#hf-min').value.trim();
   draft.group = $('#hf-group').value.trim();
   draft.remind = $('#hf-remind').value;
+  draft.cue = $('#hf-cue').value.trim();
   const n = $('#hf-n');
   if (n) draft.schedule.n = Math.max(1, Math.min(+n.value || 1, draft.schedule.type === 'weekly' ? 7 : 30));
 }
@@ -712,7 +723,7 @@ function moreView() {
     ['stats', '📊', 'Statistiken', ''], ['journal', '📓', 'Tagebuch', ''], ['todos', '📝', 'To-do-Liste', ''], ['remind', '🔔', 'Erinnerungen', `<span class="small muted" style="margin-left:auto">${remindSettings().on ? 'An' : 'Aus'}</span>`], ['settings', '⚙️', 'Einstellungen & Backup', '']];
   return `${pageHead('Mehr')}<div class="card menu">${items.map(([id, ic, l, x]) => `<button data-act="sub" data-s="${id}"><span class="ic">${ic}</span>${l}${x}</button>`).join('')}</div>`;
 }
-const back = (title) => pageHead(title, true);
+const back = (title, parent) => pageHead(title, true, parent);
 
 function challengesView() {
   ensureChallenges();
@@ -786,7 +797,7 @@ function statsView() {
 }
 
 function journalView() {
-  const t = today(), txt = S.journal[t] || '';
+  const t = today(), dr = S.ui?.jdraft, txt = dr && dr.k === t ? dr.txt : S.journal[t] || '';
   const past = Object.keys(S.journal).filter((k) => k !== t && S.journal[k].trim()).sort().reverse();
   const fire = Object.keys(S.journal).filter((k) => diffDays(k, t) < 14 && S.journal[k].trim()).length;
   return `${back('Tagebuch')}
@@ -832,7 +843,7 @@ const SOUND_NAMES = { done: 'Abgehakt', min: 'Minimum', skip: 'Übersprungen', u
   freeze: 'Squishee-Freeze', intro: 'Titelmelodie', tap: 'Tippen' };
 function soundsView() {
   const combo = [1, 3, 5, 8].map((n) => `<button class="btn small secondary" data-act="playSnd" data-k="done" data-n="${n}">${n}.</button>`).join('');
-  return `${back('Sounds')}
+  return `${back('Sounds', 'settings')}
     <div class="card"><p class="small muted" style="margin-top:0">Alle Töne sind eigene Melodien, live im Gerät erzeugt. ${S.settings.sound ? '' : '<b>Töne sind gerade aus.</b>'}</p>
       <div class="sndgrid">${Object.keys(SOUND_NAMES).map((k) => `<button class="btn secondary" data-act="playSnd" data-k="${k}">▶ ${SOUND_NAMES[k]}</button>`).join('')}</div></div>
     <div class="card"><h3>Kombo beim Abhaken</h3><p class="small muted">Jede weitere erledigte Gewohnheit am Tag klingt etwas höher.</p><div class="row">${combo}</div></div>
@@ -871,7 +882,7 @@ const actions = {
   // Gewohnheiten
   ckDay: (d) => { ckBack = Math.max(0, Math.min(7, ckBack + +d.d)); render(); },
   ckFilter: (d) => { ckFilter = d.f; render(); },
-  ckFold: (d) => { S.ui = S.ui || {}; S.ui.fold = S.ui.fold || {}; const f = S.ui.fold; f[d.g] = !(f[d.g] ?? d.g === 'Heute frei'); save(); render(); },
+  ckFold: (d) => { S.ui = S.ui || {}; S.ui.fold = S.ui.fold || {}; const f = S.ui.fold; f[d.g] = !(f[d.g] ?? (d.g === 'Heute frei' || d.g === 'Pausiert')); save(); render(); },
   hs: (d) => { const h = byId(S.habits, d.id); setStatus(h, ckKey(), d.st); render(); },
   newHabit: () => habitForm(null),
   editHabit: (d) => habitForm(byId(S.habits, d.id)),
@@ -887,10 +898,18 @@ const actions = {
     save(); closeModal(); render();
   },
   hfDelete: () => {
-    if (!confirm(`„${draft.name}“ wirklich löschen? Verlauf geht verloren.`)) return;
+    const q = questOfHabit(draft), r = q && q.subs[draft.sub];
+    if (!confirm(`„${draft.name}“ wirklich löschen? Verlauf geht verloren.${q ? ' Die Unterquest wird übersprungen.' : ''}\n\nTipp: „Pausieren“ behält den Verlauf.`)) return;
     S.habits = S.habits.filter((h) => h.id !== draft.id); delete S.log[draft.id]; delete S.freezeUsed[draft.id];
+    // Sonst bliebe das Kapitel für immer offen
+    if (r && r.habitId === draft.id && r.state === 'active') { r.state = 'skip'; questCheck(); }
     save(); closeModal(); render();
   },
+  hfPause: () => {
+    const h = byId(S.habits, draft.id); h.archived = true; h.paused = true;
+    save(); closeModal(); render(); toast(`„${h.name}“ pausiert. Fortsetzen unten im Check-in.`);
+  },
+  hResume: (d) => { const h = byId(S.habits, d.id); h.archived = false; h.paused = false; save(); render(); toast(`„${h.name}“ läuft wieder.`); },
   // Fokus
   fmin: (d) => { S.settings.focusMin = +d.m; save(); render(); },
   bmin: (d) => { S.settings.breakMin = +d.m; save(); render(); },
@@ -939,6 +958,7 @@ const actions = {
     const t = today(), txt = $('#jtext').value;
     const first = !(S.journal[t] || '').trim() && txt.trim();
     if (txt.trim()) S.journal[t] = txt; else delete S.journal[t];
+    if (S.ui) delete S.ui.jdraft;
     if (first && !S.journalRewarded?.includes(t)) {
       S.journalRewarded = [...(S.journalRewarded || []).slice(-30), t];
       reward(REWARDS.journal, REWARDS.journalXp, `+${REWARDS.journal} 🍩 Das Reifenfeuer lodert!`);
@@ -1001,12 +1021,15 @@ document.addEventListener('change', (e) => {
       const data = JSON.parse(txt);
       if (!data || !Array.isArray(data.habits) || !data.map) throw new Error('Ungültige Datei');
       if (!confirm('Backup laden? Der aktuelle Spielstand wird ersetzt.')) return;
-      S = Object.assign(freshState(), data); migrateMap(); save(); World.reset(); render(); toast('Backup geladen.');
+      S = Object.assign(freshState(), data); S.settings = Object.assign(freshState().settings, data.settings); migrateMap(); Snd.setVol(); save(); World.reset(); render(); toast('Backup geladen.');
     }).catch(() => toast('Datei konnte nicht gelesen werden.'));
   }
 });
-document.addEventListener('input', (e) => { if (e.target.id === 'setvol') { S.settings.vol = +e.target.value / 100; Snd.setVol(); } if (e.target.id === 'fnote' && run()) { run().note = e.target.value; save(); } });
-document.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.id === 'todoin') actions.todoAdd(); });
+document.addEventListener('input', (e) => { if (e.target.id === 'jtext') { S.ui = S.ui || {}; S.ui.jdraft = { k: today(), txt: e.target.value }; save(); } if (e.target.id === 'setvol') { S.settings.vol = +e.target.value / 100; Snd.setVol(); } if (e.target.id === 'fnote' && run()) { run().note = e.target.value; save(); } });
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && e.target.id === 'todoin') actions.todoAdd();
+  if (e.key === 'Enter' && e.target.tagName === 'INPUT' && e.target.id.startsWith('hf-') && draft) { e.preventDefault(); actions.hfSave(); }
+});
 document.addEventListener('visibilitychange', () => { Snd.music(tab === 'home' && S.started); if (!document.hidden) { if (S.lastCheck < addDays(today(), -1)) processMissedDays(); tickClock(); if (!run()) document.title = 'Springfield Habits'; } });
 
 // iOS: innerHeight endet über der (schwebenden) Suchleiste, in der Home-Bildschirm-App sogar über einer
@@ -1056,5 +1079,13 @@ function boot() {
   render();
   remindInit();
 }
-clockTimer = setInterval(() => { if (run()) tickClock(); else if (document.title !== 'Springfield Habits') document.title = 'Springfield Habits'; }, 500);
+// Neuer Tag, während die App offen ist: Freeze prüfen, Herausforderungen und Ansicht auffrischen
+let dayNow = today();
+function checkNewDay() {
+  if (today() === dayNow || !S.started) return;
+  dayNow = today(); ckBack = 0;
+  processMissedDays(); ensureChallenges();
+  if ($('#modal').hidden && !/^(INPUT|TEXTAREA)$/.test(document.activeElement?.tagName)) render();
+}
+clockTimer = setInterval(() => { if (run()) tickClock(); else if (document.title !== 'Springfield Habits') document.title = 'Springfield Habits'; checkNewDay(); }, 500);
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
