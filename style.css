@@ -23,6 +23,11 @@
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { margin: 0; height: 100%; overflow: hidden; }
+/* iOS-Home-Bildschirm-App mit durchsichtiger Statusleiste: der Viewport ist um die Statusleistenhöhe
+   zu kurz (z. B. 793 statt 852) und alles unterhalb von html wird abgeschnitten. html und body
+   deshalb so hoch wie der Bildschirm machen (--appH aus app.js). */
+html { min-height: calc(100% + env(safe-area-inset-top)); }
+html, body { height: var(--appH, 100%); }
 html { background: var(--sky2); }
 body { background: var(--sky2); overscroll-behavior: none; -webkit-user-select: none; user-select: none; }
 input, textarea, select, button { font: inherit; color: inherit; }

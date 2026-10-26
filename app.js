@@ -971,7 +971,7 @@ const actions = {
     const probe = (u) => { lvhProbe.style.height = '100' + u; const v = lvhProbe.offsetHeight; lvhProbe.style.height = '100lvh'; return v; };
     const safe = (s) => { const d = document.createElement('div'); d.style.cssText = `position:fixed;top:0;height:env(safe-area-inset-${s})`; document.body.appendChild(d); const v = d.offsetHeight; d.remove(); return v; };
     const info = { innerH: innerHeight, outerH: outerHeight, screenH: screenH(), clientH: document.documentElement.clientHeight, visualH: Math.round(window.visualViewport?.height || 0),
-      vh: probe('vh'), svh: probe('svh'), dvh: probe('dvh'), lvh: probe('lvh'), appH: appHeight(), standalone, navStandalone: !!navigator.standalone, safeTop: safe('top'), safeBottom: safe('bottom') };
+      vh: probe('vh'), svh: probe('svh'), dvh: probe('dvh'), lvh: probe('lvh'), appH: appHeight(), standalone, navStandalone: !!navigator.standalone, safeTop: safe('top'), safeBottom: safe('bottom'), htmlH: document.documentElement.offsetHeight, bodyH: document.body.offsetHeight, scrollY };
     const ov = document.createElement('div');
     ov.style.cssText = `position:fixed;left:0;top:0;width:100vw;height:${Math.max(appHeight(), screenH()) + 200}px;z-index:99;background:repeating-linear-gradient(45deg,#ff5a4e 0 20px,#ffd90f 20px 40px)`;
     ov.innerHTML = `<pre style="margin:90px 16px 0;padding:12px;background:#fff;border:3px solid #1d1d1d;border-radius:12px;font:700 14px/1.4 monospace;white-space:pre-wrap">${esc(JSON.stringify(info, null, 1))}\n\nTippen zum Schließen</pre>`;
