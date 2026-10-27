@@ -1,5 +1,5 @@
 // Offline-Cache: App-Dateien werden beim ersten Laden gespeichert.
-const CACHE = 'springfield-v17';
+const CACHE = 'springfield-v18';
 const FILES = ['./', 'index.html', 'style.css', 'data.js', 'questdata.js', 'art.js', 'icons.js', 'sound.js', 'isoart.js', 'app.js', 'quests.js', 'remind.js', 'world.js', 'manifest.webmanifest', 'icon.svg', 'icon-180.png', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', (e) => {

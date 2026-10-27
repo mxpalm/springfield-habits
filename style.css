@@ -497,3 +497,7 @@ textarea.in { min-height: 140px; resize: vertical; }
 .pickopt.on .pbox { background: #8fe06a; }
 .pickcta { margin-bottom: 12px; }
 .stage .pickcta { margin: 8px 0 4px; box-shadow: 0 3px 0 var(--ink); }
+
+/* ---------- Quest-Pause ---------- */
+.pauselist { margin: 0 0 10px; padding-left: 20px; font-size: 15px; line-height: 1.35; }
+.pauselist li { margin-bottom: 6px; }

@@ -64,8 +64,13 @@ function reward(donuts, xp, msg) {
 }
 
 /* ---------- Gewohnheiten ---------- */
+// Pausen (einzeln oder mit der ganzen Quest): Tage darin sind nicht fällig – Streak und Fortschritt bleiben eingefroren.
+const inPause = (h, k) => (h.pauses || []).some(([a, b]) => k >= a && (!b || k <= b));
+const pausedWeek = (h, wk) => [0, 1, 2, 3, 4, 5, 6].some((i) => inPause(h, addDays(wk, i)));
+const pauseStart = (h) => { (h.pauses = h.pauses || []).push([today(), null]); };
+const pauseEnd = (h) => { const r = (h.pauses || []).find((x) => !x[1]); if (r) r[1] = addDays(today(), -1); };
 function isDue(h, k) {
-  if (k < h.created) return false;
+  if (k < h.created || inPause(h, k)) return false;
   const sc = h.schedule;
   if (sc.type === 'days') return sc.days.includes(weekday(k));
   if (sc.type === 'interval') return diffDays(h.created, k) % sc.n === 0;
@@ -100,7 +105,7 @@ function streak(h) {
     wk = addDays(wk, -7);
     while (wk >= weekStart(h.created)) {
       if (weekCount(h, wk) >= h.schedule.n) c++;
-      else if (!frozen(h, wk)) break;
+      else if (!frozen(h, wk) && !pausedWeek(h, wk)) break;
       wk = addDays(wk, -7);
     }
     return c;
@@ -492,13 +497,20 @@ function habitsView() {
   const pickHtml = pickQ ? `<button class="card questcta pickcta" data-act="pickOpen" data-q="${pickQ.id}"><span style="font-size:28px">🧩</span><span class="grow"><b>Kapitel ${pickQ.stage + 1}: Aufgaben wählen</b><br><span class="small muted">${goalOf(pickQ).emoji} ${esc(goalOf(pickQ).name)} · such dir ${needPick(pickQ)} aus</span></span></button>` : '';
   const taskHtml = tasks.length ? `<div class="slothead">🎯 Quest-Aufgabe</div>${subRow(...tasks[0])}${tasks.length > 1 ? `<button class="linkbtn" data-act="ckTab" data-t="quests">+${tasks.length - 1} weitere unter „Quests“</button>` : ''}` : '';
 
-  const paused = S.habits.filter((h) => h.paused);
+  const paused = S.habits.filter((h) => h.paused && !h.qpause), pausedQ = (S.quests || []).filter((q) => q.status === 'paused');
+  const pausedRows = [
+    ...pausedQ.map((q) => `<div class="card row paused"><span style="font-size:24px">${goalOf(q).emoji}</span><span class="grow"><b>${esc(goalOf(q).name)}</b><br><span class="small muted">Quest · ${q.until ? 'bis ' + parseKey(q.until).toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'short' }) : 'ohne Enddatum'}</span></span><button class="btn small" data-act="qResume" data-q="${q.id}">${ic('play', 14)} Fortsetzen</button></div>`),
+    ...paused.map((h) => `<div class="card row paused"><span style="font-size:24px">${h.emoji}</span><b class="grow">${esc(h.name)}</b><button class="btn small" data-act="hResume" data-id="${h.id}">${ic('play', 14)} Fortsetzen</button></div>`)];
+  // Geplantes Pausen-Ende erreicht: Neustart anbieten statt still weiterzupausieren
+  const backQ = !ckBack && pausedQ.find((q) => q.until && q.until <= today());
+  const backHtml = backQ ? `<div class="card questcta pickcta"><span style="font-size:28px">▶</span><span class="grow"><b>Pause vorbei: ${esc(goalOf(backQ).name)}</b><br><span class="small muted">Heute ist dein Neustart. Fortschritt und Streaks warten auf dich.</span>
+    <span class="row" style="gap:8px;margin-top:8px"><button class="btn small green" data-act="qResume" data-q="${backQ.id}">Weitermachen</button><button class="btn small white" data-act="qSnooze" data-q="${backQ.id}">Noch 1 Woche</button></span></span></div>` : '';
   const empty = !active.length ? `<div class="card empty"><div class="pv">${avatarSvg(byId(CHARACTERS, 'lisa'), null, 80)}</div><p><b>Noch keine Gewohnheiten.</b><br>Lass dir von Lisa Quests bauen oder leg selbst los.</p>
     ${S.quests?.length ? '' : '<button class="btn pink block" data-act="qzStart">Quests einrichten</button>'}</div>` : '';
-  return `${pageHead('Check-in')}${checkinTabs()}${head}${pickHtml}${empty}${sections}${taskHtml}
+  return `${pageHead('Check-in')}${checkinTabs()}${head}${backHtml}${pickHtml}${empty}${sections}${taskHtml}
     ${handled.length ? foldGroup('Abgehakt', '✓', 'Abgehakt', handled.length, handled.map((h) => habitRow(h, k, { compact: true })).join(''), false) : ''}
     ${free.length ? foldGroup('Heute frei', '🛋', ckBack ? 'An diesem Tag frei' : 'Heute frei', free.length, free.map((h) => habitRow(h, k, { compact: true })).join(''), true) : ''}
-    ${paused.length && !ckBack ? foldGroup('Pausiert', '⏸', 'Pausiert', paused.length, paused.map((h) => `<div class="card row paused"><span style="font-size:24px">${h.emoji}</span><b class="grow">${esc(h.name)}</b><button class="btn small" data-act="hResume" data-id="${h.id}">${ic('play', 14)} Fortsetzen</button></div>`).join(''), true) : ''}
+    ${pausedRows.length && !ckBack ? foldGroup('Pausiert', '⏸', 'Pausiert', pausedRows.length, pausedRows.join(''), true) : ''}
     ${active.length && !S.quests?.length ? `<button class="card questcta" data-act="qzStart"><span style="font-size:30px">🗺️</span><span class="grow"><b>Quests einrichten</b><br><span class="small muted">Lisa baut dir Ziele mit Methoden aus Studien.</span></span></button>` : ''}
     <button class="btn white block" data-act="newHabit">＋ Eigene Gewohnheit</button>
     <p class="small muted center">Wischen geht auch: rechts = erledigt, links = heute nicht.</p>`;
@@ -936,10 +948,10 @@ const actions = {
     save(); closeModal(); render();
   },
   hfPause: () => {
-    const h = byId(S.habits, draft.id); h.archived = true; h.paused = true;
+    const h = byId(S.habits, draft.id); h.archived = true; h.paused = true; pauseStart(h);
     save(); closeModal(); render(); toast(`„${h.name}“ pausiert. Fortsetzen unten im Check-in.`);
   },
-  hResume: (d) => { const h = byId(S.habits, d.id); h.archived = false; h.paused = false; save(); render(); toast(`„${h.name}“ läuft wieder.`); },
+  hResume: (d) => { const h = byId(S.habits, d.id); h.archived = false; h.paused = false; pauseEnd(h); save(); render(); toast(`„${h.name}“ läuft wieder.`); },
   // Fokus
   fmin: (d) => { S.settings.focusMin = +d.m; save(); render(); },
   bmin: (d) => { S.settings.breakMin = +d.m; save(); render(); },
