@@ -1,23 +1,33 @@
-// Offline-Cache: App-Dateien werden beim ersten Laden gespeichert.
-const CACHE = 'springfield-v19';
-const FILES = ['./', 'index.html', 'style.css', 'data.js', 'questdata.js', 'art.js', 'icons.js', 'sound.js', 'isoart.js', 'app.js', 'quests.js', 'remind.js', 'world.js', 'manifest.webmanifest', 'icon.svg', 'icon-180.png', 'icon-192.png', 'icon-512.png'];
+// Offline-Cache: Die App startet sofort aus dem Cache – auch bei schlechtem oder keinem Netz.
+// Updates kommen über eine neue Cache-Version (CACHE hochzählen): Der Browser prüft sw.js beim Start,
+// lädt alle Dateien der neuen Version auf einmal (keine gemischten Stände) und die App bietet „Neu laden“ an.
+const CACHE = 'springfield-v20';
+const FILES = ['./', 'index.html', 'style.css', 'data.js', 'questdata.js', 'art.js', 'icons.js', 'sound.js', 'isoart.js', 'app.js', 'quests.js', 'remind.js', 'world.js',
+  'manifest.webmanifest', 'icon.svg', 'icon-180.png', 'icon-192.png', 'icon-512.png', 'fonts/luckiestguy.woff2', 'fonts/nunito.woff2'];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES)).then(() => self.skipWaiting()));
+  // cache: 'reload' umgeht den HTTP-Cache, damit wirklich die neue Version gespeichert wird
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES.map((f) => new Request(f, { cache: 'reload' })))).then(() => self.skipWaiting()));
 });
 self.addEventListener('activate', (e) => {
   e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
 });
-// Netz zuerst (damit Updates ankommen), sonst Cache.
+// Cache zuerst; was nicht im Cache ist, aus dem Netz holen und merken. Offline-Fallback: die App selbst.
 self.addEventListener('fetch', (e) => {
-  if (e.request.method !== 'GET') return;
-  e.respondWith(
-    fetch(e.request).then((res) => {
-      const copy = res.clone();
-      caches.open(CACHE).then((c) => c.put(e.request, copy));
+  const req = e.request;
+  if (req.method !== 'GET' || new URL(req.url).origin !== location.origin) return;
+  e.respondWith(caches.open(CACHE).then(async (c) => {
+    const hit = await c.match(req, { ignoreSearch: true });
+    if (hit) return hit;
+    try {
+      const res = await fetch(req);
+      if (res.ok) c.put(req, res.clone());
       return res;
-    }).catch(() => caches.match(e.request, { ignoreSearch: true }))
-  );
+    } catch (err) {
+      if (req.mode === 'navigate') return (await c.match('index.html')) || Response.error();
+      throw err;
+    }
+  }));
 });
 // Tipp auf eine Erinnerung: offenes Fenster zum Check-in holen, sonst App neu öffnen.
 self.addEventListener('notificationclick', (e) => {

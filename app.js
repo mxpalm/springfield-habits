@@ -36,11 +36,49 @@ function freshState() {
     settings: { strict: false, sound: true, vol: 0.7, music: false, focusMin: 25, breakMin: 5, hardcore: false, stopwatch: false, backupEvery: 7 },
   };
 }
-let S;
+let S, loadErr = null, brokenRaw = null;
 try { S = Object.assign(freshState(), JSON.parse(localStorage.getItem(STORE) || 'null') || {}); }
-catch { S = freshState(); }
+catch (e) {
+  // Beschädigter Spielstand: nicht still überschreiben, sondern daneben aufheben
+  loadErr = e; S = freshState();
+  try { brokenRaw = localStorage.getItem(STORE); if (brokenRaw) localStorage.setItem(`${STORE}-kaputt-${Date.now()}`, brokenRaw); } catch { /* Speicher gesperrt */ }
+}
 S.settings = Object.assign(freshState().settings, S.settings);
-const save = () => { try { localStorage.setItem(STORE, JSON.stringify(S)); } catch (e) { console.warn(e); } };
+// Schlägt Speichern fehl (Speicher voll oder gesperrt), einmal deutlich warnen statt still Daten zu verlieren
+let saveFailed = false;
+const save = () => {
+  try { localStorage.setItem(STORE, JSON.stringify(S)); saveFailed = false; }
+  catch (e) { console.warn(e); if (!saveFailed) { saveFailed = true; problem('save', e); } }
+};
+
+/* ---------- Fehlerschutz ---------- */
+// Eigene Fehleranzeige, unabhängig vom restlichen UI (das ist im Fehlerfall evtl. kaputt)
+const PROBLEM = {
+  save: ['Speichern klappt gerade nicht', 'Der Speicher ist voll oder gesperrt. Deine letzten Änderungen sind vielleicht nicht gesichert. Mach jetzt ein Backup.'],
+  load: ['Spielstand nicht lesbar', 'Dein gespeicherter Stand war beschädigt. Eine Kopie liegt sicher daneben. Lade dein letztes Backup über Mehr → Einstellungen → Import.'],
+  crash: ['Hoppla, da hakt etwas', 'Ein Fehler ist aufgetreten. Deine Daten sind gespeichert. Mach zur Sicherheit ein Backup und lade die App neu.'],
+};
+function problem(kind, err) {
+  if (document.getElementById('problem')) return;
+  const [title, text] = PROBLEM[kind], el = document.createElement('div');
+  const second = kind === 'crash' ? ['reload', 'Neu laden'] : ['close', 'Schließen'];
+  el.id = 'problem'; el.className = 'problem';
+  el.innerHTML = `<div class="card"><h2>${title}</h2><p>${text}</p>
+    <details class="small muted"><summary>Details</summary><code>${esc(err?.message || err || '')}</code></details>
+    <div class="row"><button class="btn green grow" type="button" data-p="${kind === 'load' && brokenRaw ? 'raw' : 'backup'}">${kind === 'load' && brokenRaw ? '⬇ Kopie sichern' : '☁ Backup sichern'}</button>
+      <button class="btn white grow" type="button" data-p="${second[0]}">${second[1]}</button></div></div>`;
+  el.addEventListener('click', (e) => {
+    const p = e.target.closest('[data-p]')?.dataset.p;
+    if (p === 'backup') backupNow().then((ok) => { if (ok) toast('☁ Backup gesichert.'); });
+    if (p === 'raw') downloadFile(new File([brokenRaw], `springfield-kaputt-${today()}.json`, { type: 'application/json' }));
+    if (p === 'reload') location.reload();
+    if (p === 'close') el.remove();
+  });
+  document.body.appendChild(el);
+}
+// Nur Fehler aus den eigenen Skripten zeigen (nicht von Browser-Erweiterungen)
+window.addEventListener('error', (e) => { if (e.filename && e.filename.startsWith(location.origin)) problem('crash', e.error || e.message); });
+window.addEventListener('unhandledrejection', (e) => console.warn('Unbehandelt:', e.reason));
 
 /* ---------- Level & Belohnungen ---------- */
 const xpFor = (lvl) => 25 * lvl * (lvl - 1); // Gesamt-XP, um Level lvl zu erreichen
@@ -1211,6 +1249,7 @@ function boot() {
   render();
   remindInit();
   initStorage();
+  if (loadErr) problem('load', loadErr);
 }
 // Neuer Tag, während die App offen ist: Freeze prüfen, Herausforderungen und Ansicht auffrischen
 let dayNow = today();
@@ -1221,4 +1260,21 @@ function checkNewDay() {
   if ($('#modal').hidden && !/^(INPUT|TEXTAREA)$/.test(document.activeElement?.tagName)) render();
 }
 clockTimer = setInterval(() => { if (run()) tickClock(); else if (document.title !== 'Springfield Habits') document.title = 'Springfield Habits'; checkNewDay(); }, 500);
-if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+/* ---------- Updates ---------- */
+// Neue Version installiert sich im Hintergrund. Sobald sie bereit ist: Hinweis mit „Neu laden“, kein Zwangs-Neustart.
+function updateReady() {
+  if ($('#updbar')) return;
+  const bar = document.createElement('div');
+  bar.id = 'updbar'; bar.className = 'updbar';
+  bar.innerHTML = '<span>✨ Neue Version ist da.</span><button class="btn small green" type="button">Neu laden</button>';
+  bar.querySelector('button').onclick = () => location.reload();
+  document.body.appendChild(bar);
+}
+if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  const hadSw = !!navigator.serviceWorker.controller; // Erstinstallation ist kein Update
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadSw) updateReady(); });
+  navigator.serviceWorker.register('sw.js').then((reg) => {
+    // Installierte Apps laufen oft tagelang weiter: beim Zurückkehren nach Updates schauen
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) reg.update().catch(() => {}); });
+  }).catch(() => {});
+}

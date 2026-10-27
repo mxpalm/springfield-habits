@@ -70,7 +70,13 @@ const World = (() => {
     if (!e) {
       const img = new Image();
       e = { img, ok: false };
-      img.onload = () => { e.ok = true; };
+      // SVG einmal in eine Bitmap rastern: SVG direkt zu zeichnen kostet bei jedem Frame neu
+      img.onload = () => {
+        const c = document.createElement('canvas');
+        c.width = img.naturalWidth; c.height = img.naturalHeight;
+        c.getContext('2d').drawImage(img, 0, 0);
+        e.img = c; e.ok = true;
+      };
       img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(make());
       imgs.set(key, e);
     }
@@ -270,18 +276,42 @@ const World = (() => {
     cam.z = Math.min(2.2, Math.max(0.5, W / ((b - a) * TW * 0.78)));
   }
 
-  function draw(t) {
-    if (!geo) buildGeo();
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.fillStyle = TERRAIN.deep.color;
-    ctx.fillRect(0, 0, cv.width, cv.height);
-    const z = cam.z * dpr;
-    ctx.setTransform(z, 0, 0, z, dpr * (W / 2 - cam.x * cam.z), dpr * (H / 2 - cam.y * cam.z));
+  // Gelände ändert sich nur beim Bauen, Verschieben oder Zoomen: einmal in ein Bild zeichnen
+  // und danach pro Frame nur kopieren. Spart den Großteil der Rechenzeit im Leerlauf.
+  const bg = document.createElement('canvas'), bgx = bg.getContext('2d');
+  let bgKey = '';
+  function drawTerrain(c, t) {
+    c.setTransform(1, 0, 0, 1, 0, 0);
+    c.fillStyle = TERRAIN.deep.color;
+    c.fillRect(0, 0, cv.width, cv.height);
+    worldTransform(c);
     const px = 1 / cam.z;
-
-    for (const col of geo.waterFills) { ctx.fillStyle = col; ctx.fill(geo.fills.get(col)); }
-    ctx.strokeStyle = 'rgba(255,255,255,.09)'; ctx.lineWidth = px; ctx.stroke(geo.gridWater);
-    // Glitzern auf dem Wasser
+    for (const col of geo.waterFills) { c.fillStyle = col; c.fill(geo.fills.get(col)); }
+    c.strokeStyle = 'rgba(255,255,255,.09)'; c.lineWidth = px; c.stroke(geo.gridWater);
+    c.fillStyle = '#b07a42'; c.fill(geo.cliffL);
+    c.fillStyle = '#8a5a2e'; c.fill(geo.cliffR);
+    c.strokeStyle = '#1d1d1d'; c.lineWidth = 1.4; c.lineJoin = 'round'; c.stroke(geo.cliffL); c.stroke(geo.cliffR);
+    for (const col of geo.landFills) { c.fillStyle = col; c.fill(geo.fills.get(col)); }
+    c.strokeStyle = 'rgba(0,0,0,.12)'; c.lineWidth = px; c.stroke(geo.gridLand); c.stroke(geo.paving);
+    c.save(); c.setLineDash([5, 5]); c.strokeStyle = '#fff6c0'; c.lineWidth = 2; c.stroke(geo.roads); c.restore();
+    for (const [col, p] of Object.entries(geo.dots)) { c.fillStyle = col; c.fill(p); }
+  }
+  function worldTransform(c) {
+    const z = cam.z * dpr;
+    c.setTransform(z, 0, 0, z, dpr * (W / 2 - cam.x * cam.z), dpr * (H / 2 - cam.y * cam.z));
+  }
+  function draw(t) {
+    if (!geo) { buildGeo(); bgKey = ''; }
+    const key = `${cam.x},${cam.y},${cam.z},${cv.width},${cv.height}`;
+    if (key !== bgKey) {
+      if (bg.width !== cv.width || bg.height !== cv.height) { bg.width = cv.width; bg.height = cv.height; }
+      drawTerrain(bgx, t); bgKey = key;
+    }
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.drawImage(bg, 0, 0);
+    worldTransform(ctx);
+    const px = 1 / cam.z;
+    // Glitzern auf dem Wasser (animiert, daher nicht im Gelände-Bild)
     ctx.strokeStyle = 'rgba(255,255,255,.75)'; ctx.lineWidth = 2; ctx.lineCap = 'round';
     for (const [sx, sy, ph] of geo.sparks) {
       const k = (Math.sin(t / 700 + ph) + 1) / 2;
@@ -290,13 +320,6 @@ const World = (() => {
       ctx.beginPath(); ctx.moveTo(sx - 5, sy); ctx.quadraticCurveTo(sx, sy - 3, sx + 5, sy); ctx.stroke();
     }
     ctx.globalAlpha = 1;
-    ctx.fillStyle = '#b07a42'; ctx.fill(geo.cliffL);
-    ctx.fillStyle = '#8a5a2e'; ctx.fill(geo.cliffR);
-    ctx.strokeStyle = '#1d1d1d'; ctx.lineWidth = 1.4; ctx.lineJoin = 'round'; ctx.stroke(geo.cliffL); ctx.stroke(geo.cliffR);
-    for (const col of geo.landFills) { ctx.fillStyle = col; ctx.fill(geo.fills.get(col)); }
-    ctx.strokeStyle = 'rgba(0,0,0,.12)'; ctx.lineWidth = px; ctx.stroke(geo.gridLand); ctx.stroke(geo.paving);
-    ctx.save(); ctx.setLineDash([5, 5]); ctx.strokeStyle = '#fff6c0'; ctx.lineWidth = 2; ctx.stroke(geo.roads); ctx.restore();
-    for (const [col, p] of Object.entries(geo.dots)) { ctx.fillStyle = col; ctx.fill(p); }
 
     // Bau-Modus: Grundstücksrand + Vorschau
     if (B.on) {
@@ -382,8 +405,11 @@ const World = (() => {
     ctx.restore();
   }
 
+  let lastDraw = 0;
   function loop(t) {
     if (!running) return;
+    if (!ptrs.size && !B.on && t - lastDraw < 30) { requestAnimationFrame(loop); return; }
+    lastDraw = t;
     const dt = Math.min(60, t - (last || t)); last = t;
     updateWalkers(dt);
     if (tab === 'home' && !B.on) { ambient(t); if (pending && t > shownAt + 700 && Object.keys(walkers).length) celebrate(); }
