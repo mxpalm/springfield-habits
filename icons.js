@@ -45,6 +45,12 @@ const IC = (() => {
     dblDown: `${ol('M24 20 L50 44 L76 20', BL, 9)}${ol('M24 54 L50 78 L76 54', BL, 9)}`,
     pin: `<path d="M50 92 C50 92 20 60 20 38 C20 20 34 8 50 8 C66 8 80 20 80 38 C80 60 50 92 50 92 Z" fill="${RE}"/><circle cx="50" cy="38" r="12" fill="${CR}"/>`,
     question: `${ol('M32 34 C32 20 42 12 52 12 C64 12 70 22 70 32 C70 48 52 46 52 64', OR, 10)}<circle cx="52" cy="84" r="8" fill="${OR}"/>`,
+    // --- Verbindung ---
+    smile: `${head(50, 50, 40)}<circle cx="36" cy="42" r="5" fill="${K}"/><circle cx="64" cy="42" r="5" fill="${K}"/><path d="M30 58 C38 74 62 74 70 58"/>`,
+    phone: `<path d="M22 10 H38 L46 32 L34 42 C40 56 46 62 58 68 L68 56 L90 62 V80 C90 86 84 92 76 92 C40 90 10 60 8 24 C8 16 14 10 22 10 Z" fill="${RE}"/><path d="M60 12 C74 14 86 26 88 40 M60 26 C68 28 72 32 74 40" stroke-width="5"/>`,
+    crystal: `<path d="M26 78 H74 L84 92 H16 Z" fill="${BR}"/><circle cx="50" cy="44" r="36" fill="${PU}"/><path d="M30 34 C32 24 40 16 50 14" stroke="#fff" stroke-width="6"/>${star4(60, 50, 12, '#fff')}`,
+    globe: `<circle cx="50" cy="50" r="40" fill="${BL}"/><ellipse cx="50" cy="50" rx="17" ry="40" stroke-width="5"/><path d="M10 50 H90 M17 30 H83 M17 70 H83" stroke-width="5"/>`,
+    people: `<path d="M48 64 C52 58 58 54 66 54 C82 54 92 66 92 90 H60" fill="${GR}"/>${head(66, 32, 17)}<path d="M8 90 C8 70 20 60 36 60 C52 60 64 70 64 90 Z" fill="${BL}"/>${head(36, 38, 18)}`,
     search: `${ol('M62 62 L86 86', BR, 12)}<circle cx="42" cy="42" r="28" fill="${SKY}"/><path d="M28 34 C30 28 36 24 42 24" stroke="#fff" stroke-width="6"/>`,
     gear: `<g transform="translate(50 50)">${[0, 45, 90, 135, 180, 225, 270, 315].map((a) => `<rect x="-9" y="-46" width="18" height="22" rx="3" fill="${GY}" transform="rotate(${a})"/>`).join('')}<circle r="31" fill="${GY}"/><circle r="12" fill="#fff"/></g>`,
     // --- Bau & Laden ---
@@ -161,6 +167,7 @@ const EMOJI_ICON = {
   '📖': 'book', '📚': 'books', '📗': 'greenBook', '📓': 'notebook', '📝': 'memo', '🗒': 'notepad', '📋': 'clipboard', '🗓': 'calendar', '🗂': 'dividers',
   '🧩': 'puzzle', '🎯': 'target', '🎲': 'dice', '💻': 'laptop', '💡': 'bulb', '🔌': 'plug', '🚀': 'rocket', '🚌': 'bus', '🗺': 'map', '✍': 'pen',
   '🚿': 'shower', '🛁': 'bath', '🛏': 'bed', '🧹': 'broom', '🎸': 'guitar', '👨‍👩‍👧‍👦': 'family', '🙏': 'pray', '🤝': 'handshake', '💌': 'loveLetter', '💬': 'speech',
+  '🙂': 'smile', '📞': 'phone', '🔮': 'crystal', '🌐': 'globe', '👥': 'people',
 };
 
 function ic(name, size) {

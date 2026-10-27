@@ -487,12 +487,15 @@ function habitsView() {
   // Nur die nächste Quest-Aufgabe, der Rest liegt im Quests-Tab
   const tasks = [];
   if (!ckBack) for (const q of activeQuests()) for (const s of goalOf(q).subs) { const r = q.subs[s.key]; if (r && r.state === 'active' && s.type !== 'habit') tasks.push([q, s]); }
+  // Neues Kapitel: erst Aufgaben wählen – das ist dann der nächste Schritt
+  const pickQ = !ckBack && activeQuests().find((q) => needPick(q));
+  const pickHtml = pickQ ? `<button class="card questcta pickcta" data-act="pickOpen" data-q="${pickQ.id}"><span style="font-size:28px">🧩</span><span class="grow"><b>Kapitel ${pickQ.stage + 1}: Aufgaben wählen</b><br><span class="small muted">${goalOf(pickQ).emoji} ${esc(goalOf(pickQ).name)} · such dir ${needPick(pickQ)} aus</span></span></button>` : '';
   const taskHtml = tasks.length ? `<div class="slothead">🎯 Quest-Aufgabe</div>${subRow(...tasks[0])}${tasks.length > 1 ? `<button class="linkbtn" data-act="ckTab" data-t="quests">+${tasks.length - 1} weitere unter „Quests“</button>` : ''}` : '';
 
   const paused = S.habits.filter((h) => h.paused);
   const empty = !active.length ? `<div class="card empty"><div class="pv">${avatarSvg(byId(CHARACTERS, 'lisa'), null, 80)}</div><p><b>Noch keine Gewohnheiten.</b><br>Lass dir von Lisa Quests bauen oder leg selbst los.</p>
     ${S.quests?.length ? '' : '<button class="btn pink block" data-act="qzStart">Quests einrichten</button>'}</div>` : '';
-  return `${pageHead('Check-in')}${checkinTabs()}${head}${empty}${sections}${taskHtml}
+  return `${pageHead('Check-in')}${checkinTabs()}${head}${pickHtml}${empty}${sections}${taskHtml}
     ${handled.length ? foldGroup('Abgehakt', '✓', 'Abgehakt', handled.length, handled.map((h) => habitRow(h, k, { compact: true })).join(''), false) : ''}
     ${free.length ? foldGroup('Heute frei', '🛋', ckBack ? 'An diesem Tag frei' : 'Heute frei', free.length, free.map((h) => habitRow(h, k, { compact: true })).join(''), true) : ''}
     ${paused.length && !ckBack ? foldGroup('Pausiert', '⏸', 'Pausiert', paused.length, paused.map((h) => `<div class="card row paused"><span style="font-size:24px">${h.emoji}</span><b class="grow">${esc(h.name)}</b><button class="btn small" data-act="hResume" data-id="${h.id}">${ic('play', 14)} Fortsetzen</button></div>`).join(''), true) : ''}

@@ -483,3 +483,17 @@ textarea.in { min-height: 140px; resize: vertical; }
 .bigopt.min.on { background: var(--yellow); }
 .bigopt.skip.on { background: #ff8a6a; }
 .hstats { gap: 14px; flex-wrap: wrap; margin: 4px 2px 0; }
+
+/* ---------- Aufgaben wählen (Kapitel mit Wahl-Aufgaben) ---------- */
+.pickhost { display: flex; align-items: flex-start; gap: 6px; margin: 0 0 6px; }
+.pickhost > svg { flex: none; width: 60px; height: auto; }
+.pickhost .speech { margin-bottom: 8px; font-size: 14px; font-weight: 700; }
+.pickhost .speech::before { bottom: auto; top: 18px; }
+.pickopt { align-items: flex-start; }
+.pickopt .ti { margin-top: 2px; }
+.pickopt .pdesc { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 13px; line-height: 1.3; margin-top: 4px; color: var(--ink); opacity: .8; }
+.pickopt .pbox { width: 30px; height: 30px; flex: none; display: grid; place-items: center; align-self: center; border: 3px solid var(--ink); border-radius: 9px; background: #fff; font-weight: 900; }
+.pickopt.on { background: #fff6c9; }
+.pickopt.on .pbox { background: #8fe06a; }
+.pickcta { margin-bottom: 12px; }
+.stage .pickcta { margin: 8px 0 4px; box-shadow: 0 3px 0 var(--ink); }

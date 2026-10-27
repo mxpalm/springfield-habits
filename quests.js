@@ -107,9 +107,10 @@ function quizView() {
     const plan = planQuests(a);
     return `${head}<div class="quizhost">${avatarSvg(c, cosmeticOf(c.id), 110)}<div class="speech">Fertig! Das sind deine Quests.</div></div>
       ${plan.main.map((g, i) => `<div class="card qsum"><div class="row"><span class="qemo">${g.emoji}</span><div class="grow"><div class="qkick">Hauptquest ${i + 1}</div><b style="font-size:18px">${esc(g.name)}</b>
-        <div class="small muted">${g.stages.length} Kapitel · ${g.subs.length} Unterquests</div></div></div>
-        <div class="small" style="margin-top:8px"><b>Kapitel 1:</b> ${esc(g.stages[0].name)}</div>
-        <ul class="qlist">${stageSubs(g, 0, a).map((s) => `<li>${typeIcon(s.type)} ${esc(s.title)} <span class="dchip ${DIFF[s.diff].cls}">${DIFF[s.diff].label}</span></li>`).join('')}</ul></div>`).join('')}
+        <div class="small muted">${g.stages.length} Kapitel</div></div></div>
+        <div class="small" style="margin-top:8px"><b>Kapitel 1:</b> ${esc(stageOf(g, 0, a).name)}</div>
+        <ul class="qlist">${stageSubs(g, 0, a).map((s) => `<li>${typeIcon(s.type)} ${esc(s.title)} <span class="dchip ${DIFF[s.diff].cls}">${DIFF[s.diff].label}</span></li>`).join('')}
+          ${pickCount(g, 0, a) ? `<li>🧩 <b>Du wählst ${pickCount(g, 0, a)} von ${poolOf(g, 0, a).length} Aufgaben</b>, die zu dir passen</li>` : ''}</ul></div>`).join('')}
       ${plan.later.length ? `<div class="card"><b>Für später</b><div class="small muted">${plan.later.map((g) => `${g.emoji} ${esc(g.name)}`).join(' · ')}</div><div class="small muted" style="margin-top:4px">Starten, sobald du eine Quest geschafft hast oder dich bereit fühlst.</div></div>` : ''}
       <button class="btn pink big block" data-act="qzFinish">Quests annehmen!</button>`;
   }
@@ -127,7 +128,8 @@ function quizView() {
 }
 const typeIcon = (t) => ({ habit: '🔁', task: '🎯', card: '📖' }[t]);
 
-function stageSubs(g, i, a) { return g.subs.filter((s) => s.stage === i + 1 && !skipSub(s, a)); }
+// Feste Unterquests eines Kapitels (ohne Wahl-Aufgaben)
+function stageSubs(g, i, a) { return g.subs.filter((s) => s.stage === i + 1 && !s.opt && !skipSub(s, a)); }
 // skipIf: Antwort zeigt, dass es schon klappt · onlyIf: nur bei passender Antwort (qid = 'ziel.frage')
 const answered = (a, [qid, vals]) => { const v = a[qid]; return Array.isArray(v) ? v.some((x) => vals.includes(x)) : vals.includes(v); };
 function skipSub(s, a) {
@@ -135,6 +137,28 @@ function skipSub(s, a) {
   if (s.onlyIf && a[s.onlyIf[0]] !== undefined && !answered(a, s.onlyIf)) return true;
   return false;
 }
+const fits = (s, a) => !(s.onlyIf && a[s.onlyIf[0]] !== undefined && !answered(a, s.onlyIf));
+const profileAns = () => S.profile?.answers || quiz?.a || {};
+
+/* ---------- Kapitel-Varianten & Wahl-Aufgaben ---------- */
+// alt: anderer Name/Intro je nach Startpunkt (z. B. ohne Freundeskreis)
+function stageOf(g, i, a = profileAns()) { const st = g.stages[i]; return st.alt && answered(a, st.alt.if) ? { ...st, ...st.alt } : st; }
+// Wahl-Aufgaben, die zur Person passen
+const poolOf = (g, i, a) => g.subs.filter((s) => s.stage === i + 1 && s.opt && !skipSub(s, a));
+// Sanfter Start (wenig Zeit, kleine Schritte, „zu viel auf einmal“): eine Aufgabe weniger
+function pickCount(g, i, a) {
+  const st = g.stages[i];
+  if (!st.pick) return 0;
+  const gentle = a.pace === 'easy' || a.budget === '5' || (a.fails || []).includes('toomuch');
+  return Math.min(poolOf(g, i, a).length, Math.max(1, st.pick - (gentle ? 1 : 0)));
+}
+// Was im Kapitel zählt: feste Unterquests (die zur Person passen) + gewählte
+function stageSubsOf(q, i) { const a = profileAns(); return goalOf(q).subs.filter((s) => s.stage === i + 1 && (s.opt ? q.subs[s.key] && fits(s, a) : fits(s, a))); }
+function needPick(q, i = q.stage) {
+  const g = goalOf(q), a = profileAns();
+  return Math.max(0, pickCount(g, i, a) - poolOf(g, i, a).filter((s) => q.subs[s.key]).length);
+}
+
 // Wie viele Hauptquests parallel: Zeitbudget, Tempo und frühere Probleme (Forschung: wenige Gewohnheiten gleichzeitig)
 function planQuests(a) {
   const order = topGoals(a).map((id) => byId(QUEST_GOALS, id));
@@ -161,24 +185,28 @@ function newQuest(g, status, a) {
   return { id: uid(), goal: g.id, status, stage: 0, started: status === 'active' ? today() : null, subs: {},
     woop: top ? { outcome: a.woopO || '', obstacle: ob ? ob.label : '', plan: ob ? ob.plan : '' } : null };
 }
+// Feste Unterquests starten; Wahl-Aufgaben startet erst die Auswahl (pickSave)
 function activateStage(q) {
-  const g = goalOf(q), a = S.profile?.answers || quiz?.a || {};
-  for (const s of g.subs.filter((x) => x.stage === q.stage + 1)) {
+  const g = goalOf(q), a = profileAns();
+  for (const s of g.subs.filter((x) => x.stage === q.stage + 1 && !x.opt)) {
     if (q.subs[s.key]) continue;
     if (skipSub(s, a)) { q.subs[s.key] = { state: 'skip' }; continue; }
-    const rec = { state: 'active' };
-    if (s.type === 'habit') {
-      let sched = s.sched || { type: 'days', days: ALL_DAYS, n: 2 };
-      if (sched.type === 'weekly') sched = { type: 'weekly', days: ALL_DAYS, n: sched.n };
-      const h = { id: uid(), name: s.title, emoji: s.emoji || g.emoji, group: g.name, minimum: s.min || '', schedule: sched, created: today(),
-        quest: q.id, sub: s.key, diff: s.diff, cue: cueFor(s, a), remind: anchorTime(s.anchor, a) };
-      S.habits.push(h); rec.habitId = h.id;
-      // Steigerung: die neue Gewohnheit löst eine leichtere ab
-      const old = s.replaces && q.subs[s.replaces];
-      if (old && old.habitId) { const oh = byId(S.habits, old.habitId); if (oh) oh.archived = true; if (old.state === 'active') old.state = 'done'; }
-    }
-    q.subs[s.key] = rec;
+    activateSub(q, s, a);
   }
+}
+function activateSub(q, s, a) {
+  const g = goalOf(q), rec = { state: 'active' };
+  if (s.type === 'habit') {
+    let sched = s.sched || { type: 'days', days: ALL_DAYS, n: 2 };
+    if (sched.type === 'weekly') sched = { type: 'weekly', days: ALL_DAYS, n: sched.n };
+    const h = { id: uid(), name: s.title, emoji: s.emoji || g.emoji, group: g.name, minimum: s.min || '', schedule: sched, created: today(),
+      quest: q.id, sub: s.key, diff: s.diff, cue: cueFor(s, a), remind: anchorTime(s.anchor, a) };
+    S.habits.push(h); rec.habitId = h.id;
+    // Steigerung: die neue Gewohnheit löst eine leichtere ab
+    const old = s.replaces && q.subs[s.replaces];
+    if (old && old.habitId) { const oh = byId(S.habits, old.habitId); if (oh) oh.archived = true; if (old.state === 'active') old.state = 'done'; }
+  }
+  q.subs[s.key] = rec;
 }
 // Fortschritt einer Unterquest (0–1)
 function subProgress(q, s) {
@@ -188,13 +216,14 @@ function subProgress(q, s) {
   if (s.type === 'habit') { const h = byId(S.habits, r.habitId); return h ? Math.min(1, okCount(h) / masteryOf(s)) : 0; }
   return 0;
 }
+// Offene Wahl-Plätze zählen als 0 – ein Kapitel ist erst fertig, wenn gewählt und geschafft
 function stageProgress(q, i = q.stage) {
-  const subs = goalOf(q).subs.filter((s) => s.stage === i + 1);
-  return subs.length ? subs.reduce((t, s) => t + subProgress(q, s), 0) / subs.length : 1;
+  const subs = stageSubsOf(q, i), slots = subs.length + needPick(q, i);
+  return slots ? subs.reduce((t, s) => t + subProgress(q, s), 0) / slots : 1;
 }
 function questProgress(q) {
-  const g = goalOf(q);
-  return g.subs.reduce((t, s) => t + (s.stage - 1 < q.stage ? 1 : s.stage - 1 === q.stage ? subProgress(q, s) : 0), 0) / g.subs.length;
+  const n = goalOf(q).stages.length;
+  return Math.min(1, (q.stage + (q.status === 'done' ? 1 : stageProgress(q))) / n);
 }
 // Nach jeder Änderung prüfen: Kapitel geschafft? Quest geschafft?
 function questCheck() {
@@ -209,6 +238,8 @@ function questCheck() {
       const name = g.stages[q.stage].name;
       q.stage++; activateStage(q); sound('chapter');
       reward(STAGE_REWARD[0], STAGE_REWARD[1], `📗 Kapitel geschafft: ${name}! +${STAGE_REWARD[0]} 🍩`);
+      // Erst nach dem aktuellen Klick öffnen, sonst schließt z. B. hsSheet das Fenster gleich wieder
+      if (needPick(q)) setTimeout(() => openPicker(q), 700);
     }
     if (stageProgress(q) < 1) continue;
     q.status = 'done'; q.doneAt = today();
@@ -252,12 +283,15 @@ function questsView() {
       <div class="row"><span class="qface">${avatarSvg(host(g), null, 64, true)}</span><div class="grow"><div class="qkick">Hauptquest · ${pct} %</div>
         <div class="qname">${g.emoji} ${esc(g.name)}</div><div class="pbar big"><i style="width:${pct}%"></i></div></div></div>
       ${q.woop && q.woop.plan ? `<div class="woop"><b>Dein Plan:</b> ${esc(q.woop.plan)}${q.woop.outcome ? `<div class="small muted" style="margin-top:3px">Dafür: „${esc(q.woop.outcome)}“</div>` : ''}</div>` : ''}
-      ${g.stages.map((stg, i) => {
-        const state = i < q.stage ? 'done' : i === q.stage ? 'now' : 'next';
+      ${g.stages.map((_, i) => {
+        const stg = stageOf(g, i), state = i < q.stage ? 'done' : i === q.stage ? 'now' : 'next';
         return `<details class="stage ${state}" ${state === 'now' ? 'open' : ''}><summary><span class="sn">${state === 'done' ? '✓' : i + 1}</span><span class="grow">Kapitel ${i + 1}: ${esc(stg.name)}</span>
           ${state === 'now' ? `<span class="small">${Math.round(stageProgress(q) * 100)} %</span>` : state === 'next' ? '<span class="small muted">🔒</span>' : ''}</summary>
           ${stg.intro ? `<p class="small muted" style="margin:4px 2px 8px">${esc(stg.intro)}</p>` : ''}
-          ${g.subs.filter((s) => s.stage === i + 1).map((s) => subRow(q, s)).join('')}</details>`;
+          ${stageSubsOf(q, i).map((s) => subRow(q, s)).join('')}
+          ${state === 'now' && needPick(q) ? `<button class="card questcta pickcta" data-act="pickOpen" data-q="${q.id}"><span style="font-size:28px">🧩</span><span class="grow"><b>Noch ${needPick(q)} Aufgabe${needPick(q) > 1 ? 'n' : ''} wählen</b><br><span class="small muted">Such dir aus, was zu dir passt.</span></span></button>`
+            : state === 'now' && pickCount(g, i, profileAns()) ? `<button class="linkbtn" data-act="pickOpen" data-q="${q.id}">🔄 Auswahl ändern</button>`
+            : state === 'next' && pickCount(g, i, profileAns()) ? `<p class="small muted" style="margin:6px 2px">🧩 Du wählst ${pickCount(g, i, profileAns())} von ${poolOf(g, i, profileAns()).length} Aufgaben</p>` : ''}</details>`;
       }).join('')}
       <div class="small muted" style="margin-top:6px">Kapitel geschafft: +${STAGE_REWARD[0]} 🍩 · Hauptquest geschafft: +${QUEST_REWARD[0]} 🍩 und eine neue Figur</div>
     </div>`;
@@ -281,7 +315,36 @@ function subSheet(q, s) {
     ${s.type === 'habit' ? `<p class="small muted">Gemeistert nach ${masteryOf(s)}× erledigt${h ? ` (bisher ${Math.min(okCount(h), masteryOf(s))})` : ''}. Abhaken unter „Heute“.</p>` : ''}
     <div class="sources">${s.src ? `<div>📚 Studie: ${link(s.src)}</div>` : ''}${s.learn ? `<div>💡 Mehr erfahren: ${link(s.learn)}</div>` : ''}</div>
     <div class="row" style="margin-top:14px"><button class="btn white grow" data-act="close">Schließen</button>
-      ${r.state === 'active' && s.type !== 'habit' ? `<button class="btn green grow" data-act="subDone" data-q="${q.id}" data-k="${s.key}">${s.type === 'card' ? '✓ Gelesen' : '✓ Erledigt'}</button>` : ''}</div>`);
+      ${r.state === 'active' && s.type !== 'habit' ? `<button class="btn green grow" data-act="subDone" data-q="${q.id}" data-k="${s.key}">${s.type === 'card' ? '✓ Gelesen' : '✓ Erledigt'}</button>` : ''}</div>
+    ${s.opt && r.state === 'active' && s.stage === q.stage + 1 ? `<button class="linkbtn" style="margin-top:8px" data-act="pickOpen" data-q="${q.id}">🔄 Passt nicht? Andere Aufgabe wählen</button>` : ''}`);
+}
+
+/* ---------- Aufgaben wählen ---------- */
+// Wahl zwischen mehreren Aufgaben pro Kapitel: Autonomie stärkt die Motivation (Patall et al. 2008),
+// wenige Optionen halten die Entscheidung leicht (Chernev et al. 2015).
+let pickSel = null; // { q: questId, keys: [...] }
+function openPicker(q) {
+  const g = goalOf(q), a = profileAns();
+  if (!pickCount(g, q.stage, a)) return;
+  pickSel = { q: q.id, keys: poolOf(g, q.stage, a).filter((s) => q.subs[s.key]).map((s) => s.key) };
+  pickerView(); $('#sheet').scrollTop = 0;
+}
+function pickerView() {
+  const q = S.quests.find((x) => x.id === pickSel.q), g = goalOf(q), a = profileAns(), i = q.stage;
+  const st = stageOf(g, i, a), n = pickCount(g, i, a), sel = pickSel.keys, left = n - sel.length;
+  const host = byId(CHARACTERS, g.host) || mainChar();
+  const opt = (s) => {
+    const on = sel.includes(s.key), d = DIFF[s.diff], r = q.subs[s.key];
+    const meta = `<span class="dchip ${d.cls}">${d.label}</span> ${TYPE_LABEL[s.type]}${s.sched?.type === 'weekly' ? ` · ${s.sched.n}× pro Woche` : ''}${r && r.state !== 'active' ? ' · erledigt' : ''}`;
+    return `<button class="subq pickopt ${on ? 'on' : ''}" data-act="pickToggle" data-k="${s.key}"><span class="ti">${typeIcon(s.type)}</span>
+      <span class="grow"><span class="nm">${esc(s.title)}</span><span class="meta">${meta}</span><span class="pdesc">${esc(s.how || s.why)}</span></span>
+      <span class="pbox">${on ? '✓' : ''}</span></button>`;
+  };
+  openModal(`<div class="qkick">${g.emoji} ${esc(g.name)} · Kapitel ${i + 1}</div><h2 style="margin:4px 0 10px">${esc(st.name)}</h2>
+    <div class="pickhost">${avatarSvg(host, null, 60, true)}<div class="speech">${esc(st.intro)} Such dir <b>${n}</b> Aufgaben aus, die zu dir passen.</div></div>
+    ${poolOf(g, i, a).map(opt).join('')}
+    <p class="small muted center" style="margin:6px 0 0">Du kannst später jederzeit tauschen. Gründe und Studien stehen in jeder Aufgabe.</p>
+    <div class="sheetbar"><button class="btn pink big block" data-act="pickSave" ${left ? 'disabled' : ''}>${left ? `Noch ${left} wählen` : 'Los geht’s!'}</button></div>`);
 }
 
 /* ---------- Aktionen ---------- */
@@ -303,9 +366,33 @@ Object.assign(actions, {
   },
   qzFinish: () => {
     generateQuests(quiz.a); quiz = null; tab = 'habits'; checkTab = 'quests'; render();
-    toast('Deine Quests sind bereit! Fang mit Kapitel 1 an.');
+    const q = activeQuests().find((x) => needPick(x));
+    if (q) openPicker(q); else toast('Deine Quests sind bereit! Fang mit Kapitel 1 an.');
   },
   ckTab: (d) => { checkTab = d.t; render(); },
+  pickOpen: (d) => { const q = S.quests.find((x) => x.id === d.q); if (q) openPicker(q); },
+  pickToggle: (d) => {
+    const q = S.quests.find((x) => x.id === pickSel.q), r = q.subs[d.k], n = pickCount(goalOf(q), q.stage, profileAns()), sel = pickSel.keys;
+    if (sel.includes(d.k)) {
+      if (r && r.state !== 'active') return toast('Schon geschafft – die bleibt.');
+      pickSel.keys = sel.filter((k) => k !== d.k);
+    } else if (sel.length >= n) return toast(`Höchstens ${n}. Tipp erst eine andere Aufgabe ab.`);
+    else pickSel.keys = [...sel, d.k];
+    const top = $('#sheet').scrollTop;
+    pickerView(); $('#sheet').scrollTop = top;
+  },
+  pickSave: () => {
+    const q = S.quests.find((x) => x.id === pickSel.q), g = goalOf(q), a = profileAns();
+    for (const s of poolOf(g, q.stage, a)) {
+      const on = pickSel.keys.includes(s.key), r = q.subs[s.key];
+      if (on && !r) activateSub(q, s, a);
+      // Abgewählt: Gewohnheit archivieren (Verlauf bleibt), Platz wird frei
+      if (!on && r && r.state === 'active') { const h = r.habitId && byId(S.habits, r.habitId); if (h) h.archived = true; delete q.subs[s.key]; }
+    }
+    pickSel = null; closeModal(); sound('tap');
+    questCheck(); render();
+    toast('Deine Aufgaben stehen! Gewohnheiten findest du unter „Heute“.');
+  },
   subOpen: (d) => { const q = S.quests.find((x) => x.id === d.q); const s = subOf(q, d.k); if (q.subs[s.key]) subSheet(q, s); else toast('Wird in einem späteren Kapitel freigeschaltet.'); },
   subDone: (d) => {
     const q = S.quests.find((x) => x.id === d.q), s = subOf(q, d.k), r = q.subs[s.key];
@@ -320,6 +407,7 @@ Object.assign(actions, {
     const q = S.quests.find((x) => x.id === d.q);
     if (activeQuests().length >= 3) return toast('Höchstens drei Hauptquests gleichzeitig – schließ erst eine ab.');
     q.status = 'active'; q.started = today(); activateStage(q); save(); render();
+    if (needPick(q)) openPicker(q);
   },
 });
 
