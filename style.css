@@ -501,3 +501,17 @@ textarea.in { min-height: 140px; resize: vertical; }
 /* ---------- Quest-Pause ---------- */
 .pauselist { margin: 0 0 10px; padding-left: 20px; font-size: 15px; line-height: 1.35; }
 .pauselist li { margin-bottom: 6px; }
+
+/* Zähl-Gewohnheiten: Ring füllt sich bis zum Tagesziel, das Plus zeigt „tippen = eins mehr“ */
+.ckbtn.cnt { position: relative; background: conic-gradient(#8fe06a calc(var(--p) * 360deg), #fff 0); }
+.ckbtn.cnt .cn { width: 40px; height: 40px; border-radius: 50%; background: #fff; border: 2px solid var(--ink); display: grid; place-items: center; align-content: center; font-size: 16px; line-height: 1; letter-spacing: -.5px; }
+.ckbtn.cnt .cn small { font-size: 10px; opacity: .6; }
+.ckbtn.cnt::before { content: '+'; position: absolute; top: -7px; right: -7px; width: 20px; height: 20px; border-radius: 50%; background: var(--yellow); border: 2px solid var(--ink); font-size: 15px; line-height: 16px; text-align: center; }
+.ckbtn.cnt.done::before, .ckbtn.cnt.skip::before { display: none; }
+.ckbtn.cnt.skip { background: #ff8a6a; }
+.hrow.compact .ckbtn.cnt .cn { width: 30px; height: 30px; font-size: 12px; }
+.hrow.compact .ckbtn.cnt .cn small { display: none; }
+.counter { display: flex; align-items: center; justify-content: center; gap: 18px; margin: 16px 0 6px; }
+.counter .round { width: 56px; height: 56px; font-size: 30px; font-weight: 900; padding: 0; }
+.counter .cbig { min-width: 96px; text-align: center; font-size: 20px; font-weight: 900; }
+.counter .cbig b { font-size: 40px; }

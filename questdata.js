@@ -885,7 +885,7 @@ const QUEST_GOALS = [
         how: 'Eine Flasche, die du magst, gefüllt neben Laptop oder Kasse.',
         why: 'Sichtbarkeit und Nähe steuern, was wir konsumieren (übertragen aus Studien zur Essensumgebung).',
         src: ['Hollands et al. 2019, Cochrane', 'https://pmc.ncbi.nlm.nih.gov/articles/PMC6953356/'] },
-      { key: 'meals', stage: 1, type: 'habit', diff: 'easy', title: 'Ein Glas Wasser zu jeder Mahlzeit', emoji: '🥛', cue: 'Wenn ich mich zum Essen hinsetze',
+      { key: 'meals', stage: 1, type: 'habit', diff: 'easy', title: 'Ein Glas Wasser zu jeder Mahlzeit', emoji: '🥛', cue: 'Wenn ich mich zum Essen hinsetze', count: { goal: 3, min: 1, unit: 'Gläser' },
         min: 'Ein Glas zur Hauptmahlzeit', how: 'Drei Mahlzeiten, drei Gläser – schon ist ein großer Teil geschafft.',
         why: 'Trinken an einen festen Auslöser koppeln macht es zur Gewohnheit. Empfehlung: etwa 2,0 L (Frauen) bzw. 2,5 L (Männer) Wasser insgesamt, rund 20 % davon aus dem Essen.',
         src: ['EFSA 2010, Referenzwerte Wasser', 'https://doi.org/10.2903/j.efsa.2010.1459'],

@@ -49,6 +49,7 @@ const IC = (() => {
     smile: `${head(50, 50, 40)}<circle cx="36" cy="42" r="5" fill="${K}"/><circle cx="64" cy="42" r="5" fill="${K}"/><path d="M30 58 C38 74 62 74 70 58"/>`,
     phone: `<path d="M22 10 H38 L46 32 L34 42 C40 56 46 62 58 68 L68 56 L90 62 V80 C90 86 84 92 76 92 C40 90 10 60 8 24 C8 16 14 10 22 10 Z" fill="${RE}"/><path d="M60 12 C74 14 86 26 88 40 M60 26 C68 28 72 32 74 40" stroke-width="5"/>`,
     crystal: `<path d="M26 78 H74 L84 92 H16 Z" fill="${BR}"/><circle cx="50" cy="44" r="36" fill="${PU}"/><path d="M30 34 C32 24 40 16 50 14" stroke="#fff" stroke-width="6"/>${star4(60, 50, 12, '#fff')}`,
+    cloud: `<path d="M24 74 C10 74 6 62 10 54 C14 46 22 44 28 46 C30 32 42 24 54 26 C66 28 72 36 74 44 C86 42 94 52 92 62 C90 70 84 74 78 74 Z" fill="#e8f4ff"/><path d="M42 90 V68 H32 L50 48 L68 68 H58 V90 Z" fill="${BL}"/>`,
     globe: `<circle cx="50" cy="50" r="40" fill="${BL}"/><ellipse cx="50" cy="50" rx="17" ry="40" stroke-width="5"/><path d="M10 50 H90 M17 30 H83 M17 70 H83" stroke-width="5"/>`,
     people: `<path d="M48 64 C52 58 58 54 66 54 C82 54 92 66 92 90 H60" fill="${GR}"/>${head(66, 32, 17)}<path d="M8 90 C8 70 20 60 36 60 C52 60 64 70 64 90 Z" fill="${BL}"/>${head(36, 38, 18)}`,
     search: `${ol('M62 62 L86 86', BR, 12)}<circle cx="42" cy="42" r="28" fill="${SKY}"/><path d="M28 34 C30 28 36 24 42 24" stroke="#fff" stroke-width="6"/>`,
@@ -167,7 +168,7 @@ const EMOJI_ICON = {
   '📖': 'book', '📚': 'books', '📗': 'greenBook', '📓': 'notebook', '📝': 'memo', '🗒': 'notepad', '📋': 'clipboard', '🗓': 'calendar', '🗂': 'dividers',
   '🧩': 'puzzle', '🎯': 'target', '🎲': 'dice', '💻': 'laptop', '💡': 'bulb', '🔌': 'plug', '🚀': 'rocket', '🚌': 'bus', '🗺': 'map', '✍': 'pen',
   '🚿': 'shower', '🛁': 'bath', '🛏': 'bed', '🧹': 'broom', '🎸': 'guitar', '👨‍👩‍👧‍👦': 'family', '🙏': 'pray', '🤝': 'handshake', '💌': 'loveLetter', '💬': 'speech',
-  '🙂': 'smile', '📞': 'phone', '🔮': 'crystal', '🌐': 'globe', '👥': 'people',
+  '🙂': 'smile', '📞': 'phone', '🔮': 'crystal', '🌐': 'globe', '👥': 'people', '☁': 'cloud',
 };
 
 function ic(name, size) {

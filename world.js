@@ -125,6 +125,80 @@ const World = (() => {
     free.sort((p, q) => p[2] - q[2]);
     return free[Math.floor(Math.random() * Math.min(free.length, 12))];
   }
+  /* --- Lebendige Stadt: Ausflüge zu Gebäuden, Begegnungen, Reaktionen auf Fortschritt --- */
+  const emotes = {}; // id -> { type, until, dur }
+  const emote = (id, type, ms = 2200) => { emotes[id] = { type, until: performance.now() + ms, dur: ms }; };
+  const VISIT = { lardlad: 'donut', kwikemart: 'donut', krustyburger: 'donut', hotdog: 'donut', bigdonut: 'donut', moes: 'note', bowlarama: 'star', cinema: 'star',
+    circus: 'star', wheel: 'star', couch: 'heart', tv: 'star', flowers: 'heart', fountain: 'heart', bench: 'heart', tree: 'heart', church: 'note', school: 'bang', plant: 'bang' };
+  const faceTo = (w, x, y) => { const d = (x - y) - (w.x - w.y); if (d) w.face = d > 0 ? 1 : -1; };
+  // Kürzester Weg (Breitensuche) zu einem der Zielfelder, höchstens 30 Schritte
+  function pathTo(w, goals) {
+    const seen = new Map([[`${w.x},${w.y}`, null]]), queue = [[w.x, w.y]];
+    while (queue.length) {
+      const [x, y] = queue.shift(), key = `${x},${y}`;
+      if (goals.has(key)) {
+        const path = [];
+        for (let k = key; seen.get(k); k = seen.get(k)) path.unshift(k.split(',').map(Number));
+        return path.length <= 30 ? path : null;
+      }
+      if (seen.size > 900) return null;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = x + dx, ny = y + dy, nk = `${nx},${ny}`;
+        if (!seen.has(nk) && walkable(nx, ny)) { seen.set(nk, key); queue.push([nx, ny]); }
+      }
+    }
+    return null;
+  }
+  function planVisit(w) {
+    const o = S.map.objects.length && pick(S.map.objects);
+    if (!o) return;
+    const sz = byId(ITEMS, o.item).s, goals = new Set();
+    for (let x = o.x - 1; x <= o.x + sz; x++) for (let y = o.y - 1; y <= o.y + sz; y++) {
+      const inside = x >= o.x && y >= o.y && x < o.x + sz && y < o.y + sz;
+      if (!inside && walkable(x, y)) goals.add(`${x},${y}`);
+    }
+    const path = goals.size && pathTo(w, goals);
+    if (path && path.length) { w.path = path; w.goal = o; }
+  }
+  // Wie läuft der Tag? Bestimmt, wie fröhlich die Stadt ist (alle 5 s neu berechnet)
+  let moodAt = 0, moodNow = { due: 0, done: 0 };
+  function mood(t) {
+    if (t - moodAt > 5000) {
+      moodAt = t;
+      const k = today(), due = S.habits.filter((h) => !h.archived && dueOn(h, k));
+      moodNow = { due: due.length, done: due.filter((h) => finished(status(h, k))).length };
+    }
+    return moodNow;
+  }
+  function cheer(big) {
+    const now = performance.now();
+    for (const [id, w] of Object.entries(walkers)) {
+      w.hop0 = now + Math.random() * 250; w.hop = w.hop0 + (big ? 2200 : 1300);
+      w.wait = Math.max(w.wait, big ? 2600 : 1600);
+      emote(id, big ? pick(['star', 'heart', 'donut']) : 'heart', big ? 2600 : 1800);
+    }
+  }
+  function ambient(t) {
+    if (t < (ambient.next || 0)) return;
+    ambient.next = t + 6000 + Math.random() * 6000;
+    const ids = Object.keys(walkers).filter((id) => !walkers[id].moving && (!talk || talk.id !== id));
+    if (!ids.length) return;
+    const id = pick(ids), w = walkers[id], m = mood(t);
+    // Alles geschafft: Freudensprünge. Sonst ab und zu ein Pfeifen.
+    if (m.due && m.done === m.due) { w.hop0 = t; w.hop = t + 1200; emote(id, pick(['heart', 'star', 'note'])); }
+    else if (Math.random() < 0.5) emote(id, 'note', 1800);
+  }
+  function tryMeet(w, id, now) {
+    if ((w.met || 0) > now) return false;
+    for (const [oid, o] of Object.entries(walkers)) {
+      if (o === w || o.moving || (o.met || 0) > now || Math.abs(o.x - w.x) + Math.abs(o.y - w.y) !== 1) continue;
+      faceTo(w, o.x, o.y); faceTo(o, w.x, w.y);
+      w.wait = o.wait = 2600; w.met = o.met = now + 20000; w.path = o.path = null;
+      emote(id, 'dots', 2400); setTimeout(() => emote(oid, pick(['heart', 'note', 'bang']), 1600), 900);
+      return true;
+    }
+    return false;
+  }
   function updateWalkers(dt) {
     const home = unlocked().filter((c) => S.chars[c.id].home !== false);
     for (const id of Object.keys(walkers)) if (!home.find((c) => c.id === id)) delete walkers[id];
@@ -138,15 +212,30 @@ const World = (() => {
       }
       if (w.moving) {
         w.t += dt / 850;
-        if (w.t >= 1) { w.moving = false; w.x = w.tx; w.y = w.ty; w.fx = w.x; w.fy = w.y; w.wait = 700 + Math.random() * 3200; }
+        if (w.t >= 1) { w.moving = false; w.x = w.tx; w.y = w.ty; w.fx = w.x; w.fy = w.y; w.wait = w.path?.length ? 60 : w.goal ? 200 : 700 + Math.random() * 3200; }
         else { w.fx = w.x + (w.tx - w.x) * w.t; w.fy = w.y + (w.ty - w.y) * w.t; }
       } else if ((w.wait -= dt) <= 0) {
-        const opts = [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => [w.x + dx, w.y + dy]).filter(([x, y]) => walkable(x, y) && !Object.values(walkers).some((o) => o !== w && o.tx === x && o.ty === y));
-        if (opts.length) {
-          const [tx, ty] = pick(opts);
+        const now = performance.now(), free = (x, y) => walkable(x, y) && !Object.values(walkers).some((o) => o !== w && o.tx === x && o.ty === y);
+        if (tryMeet(w, c.id, now)) continue;
+        // Ausflug angekommen: kurz bleiben und zeigen, wie es gefällt
+        if (w.goal && !w.path?.length) {
+          const it = byId(ITEMS, w.goal.item);
+          faceTo(w, w.goal.x + (it.s - 1) / 2, w.goal.y + (it.s - 1) / 2);
+          emote(c.id, VISIT[it.id] || pick(['heart', 'star']), 2400);
+          w.goal = null; w.wait = 2600 + Math.random() * 1500; continue;
+        }
+        if (!w.goal && Math.random() < 0.3) planVisit(w);
+        let step = w.path?.length ? w.path[0] : null;
+        if (step && !free(...step)) { w.path = null; w.goal = null; step = null; }
+        if (step) { w.path.shift(); w.wait = 0; }
+        else {
+          const opts = [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => [w.x + dx, w.y + dy]).filter(([x, y]) => free(x, y));
+          step = opts.length ? pick(opts) : null;
+        }
+        if (step) {
+          const [tx, ty] = step;
+          faceTo(w, tx, ty);
           w.tx = tx; w.ty = ty; w.t = 0; w.moving = true;
-          const dsx = (tx - ty) - (w.x - w.y);
-          if (dsx) w.face = dsx > 0 ? 1 : -1;
         } else w.wait = 1500;
       }
     }
@@ -155,7 +244,8 @@ const World = (() => {
   function walkerScreen(id) {
     const w = walkers[id];
     if (!w) return null;
-    const bob = w.moving ? Math.abs(Math.sin(w.t * Math.PI * 2)) * 3 : 0;
+    const now = performance.now(), hop = w.hop && now < w.hop && now > w.hop0 ? Math.abs(Math.sin((now - w.hop0) / 150)) * 13 : 0;
+    const bob = (w.moving ? Math.abs(Math.sin(w.t * Math.PI * 2)) * 3 : 0) + hop;
     const wx = isoX(w.fx + 0.5, w.fy + 0.5), wy = isoY(w.fx + 0.5, w.fy + 0.5) - bob;
     return { wx, wy, top: toScreen(wx, wy - CH), feet: toScreen(wx, wy) };
   }
@@ -265,16 +355,64 @@ const World = (() => {
     if (w.face < 0) ctx.scale(-1, 1);
     ctx.drawImage(img, -CW / 2, -CH + 3, CW, CH);
     ctx.restore();
+    if (emotes[id] && (!talk || talk.id !== id)) drawEmote(id, p.wx, p.wy - CH - 2);
+  }
+  // Kleine Gedankenblase über dem Kopf, Symbole selbst gezeichnet
+  function drawEmote(id, x, y) {
+    const e = emotes[id], now = performance.now();
+    if (now > e.until) { delete emotes[id]; return; }
+    const age = now - (e.until - e.dur), pop = Math.min(1, age / 140), fade = Math.min(1, (e.until - now) / 300);
+    ctx.save(); ctx.translate(x, y - pop * 4); ctx.scale(0.6 + pop * 0.4, 0.6 + pop * 0.4); ctx.globalAlpha = fade;
+    ctx.lineWidth = 2; ctx.strokeStyle = '#1d1d1d'; ctx.fillStyle = '#fff'; ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-6, -22); ctx.arcTo(14, -22, 14, 0, 8); ctx.arcTo(14, 0, -14, 0, 8); ctx.lineTo(5, 0); ctx.lineTo(0, 6); ctx.lineTo(-3, 0);
+    ctx.arcTo(-14, 0, -14, -22, 8); ctx.arcTo(-14, -22, 14, -22, 8); ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    ctx.translate(0, -11); ctx.lineWidth = 1.6;
+    const P = new Path2D();
+    switch (e.type) {
+      case 'heart': P.moveTo(0, 6); P.bezierCurveTo(-11, -1, -6, -10, 0, -4); P.bezierCurveTo(6, -10, 11, -1, 0, 6); ctx.fillStyle = '#ff5a7a'; break;
+      case 'star': for (let i = 0; i < 10; i++) { const r = i % 2 ? 3.4 : 8, a = -Math.PI / 2 + (i * Math.PI) / 5; P.lineTo(Math.cos(a) * r, Math.sin(a) * r + 0.6); } P.closePath(); ctx.fillStyle = '#ffd90f'; break;
+      case 'donut': P.arc(0, 0, 7.5, 0, 6.29); P.moveTo(3, 0); P.arc(0, 0, 3, 0, 6.29, true); ctx.fillStyle = '#ff7eb6'; break;
+      case 'note': P.ellipse(-3, 4, 3.6, 2.8, -0.4, 0, 6.29); P.rect(0, -7, 1.8, 11); P.moveTo(0, -7); P.lineTo(6, -4); P.lineTo(6, -1); P.lineTo(1.8, -3.5); ctx.fillStyle = '#1d1d1d'; break;
+      case 'bang': P.rect(-1.8, -8, 3.6, 10); P.arc(0, 6, 2.2, 0, 6.29); ctx.fillStyle = '#e8332a'; break;
+      default: for (const dx of [-6, 0, 6]) { P.moveTo(dx + 2, 0); P.arc(dx, 0, 2, 0, 6.29); } ctx.fillStyle = '#1d1d1d';
+    }
+    ctx.fill(P, 'evenodd'); if (e.type !== 'dots' && e.type !== 'note' && e.type !== 'bang') ctx.stroke(P);
+    ctx.restore();
   }
 
   function loop(t) {
     if (!running) return;
     const dt = Math.min(60, t - (last || t)); last = t;
     updateWalkers(dt);
+    if (tab === 'home' && !B.on) { ambient(t); if (pending && t > shownAt + 700 && Object.keys(walkers).length) celebrate(); }
     draw(t);
     requestAnimationFrame(loop);
   }
-  function start() { if (running) return; running = true; last = 0; requestAnimationFrame(loop); }
+  // Fortschritt aus dem Check-in: die Stadt feiert, sobald du zurück auf der Karte bist
+  let pending = null, shownAt = 0;
+  const RANK = { habit: 1, allDone: 2, chapter: 3, quest: 4 };
+  function react(kind) { moodAt = 0; if (!pending || RANK[kind] > RANK[pending]) pending = kind; }
+  function celebrate() {
+    const kind = pending; pending = null;
+    cheer(kind !== 'habit');
+    const ids = Object.keys(walkers), id = ids.includes(S.main) ? S.main : pick(ids);
+    const text = kind === 'quest' ? 'Hauptquest geschafft! Ganz Springfield feiert!' : kind === 'chapter' ? 'Neues Kapitel! Weiter so!' : progressLine();
+    talk = { id, text, until: performance.now() + 3200 }; walkers[id].wait = 3200;
+    sound('talk', id, text);
+  }
+  function progressLine() {
+    moodAt = 0;
+    const m = mood(performance.now()), s = streakNow(), q = activeQuests()[0];
+    if (!m.due) return pick(['Heute ist nichts fällig. Ab auf die Couch!', 'Freier Tag in Springfield!']);
+    if (m.done === m.due) return pick(['Alles erledigt heute. Woohoo!', `${m.done} von ${m.due} – perfekter Tag!`, 'Heute hast du alles geschafft!']);
+    if (s >= 3 && Math.random() < 0.35) return `${s} Tage am Stück – nicht abreißen lassen!`;
+    if (q && Math.random() < 0.3) return `„${goalOf(q).name}“: ${Math.round(questProgress(q) * 100)} % geschafft!`;
+    if (m.done) return pick([`${m.done} von ${m.due} geschafft – weiter so!`, `Noch ${m.due - m.done} heute. Du schaffst das!`]);
+    return new Date().getHours() >= 18 ? 'Noch nichts geschafft? Ein Minimum zählt auch!' : pick([`Heute stehen ${m.due} Gewohnheiten an.`, 'Neuer Tag, neue Donuts!']);
+  }
+  function start() { if (running) return; running = true; last = 0; shownAt = performance.now(); requestAnimationFrame(loop); }
   function stop() { running = false; $('#bubble').hidden = true; }
 
   /* --- Eingabe: Verschieben, Zoomen, Tippen, Malen --- */
@@ -375,7 +513,10 @@ const World = (() => {
       return;
     }
     const id = pickWalker(sx, sy);
-    if (id) { talk = { id, text: pick(byId(CHARACTERS, id).lines), until: performance.now() + 2800 }; walkers[id].wait = 2800; sound('talk', id, talk.text); return; }
+    if (id) {
+      const text = Math.random() < 0.5 ? progressLine() : pick(byId(CHARACTERS, id).lines);
+      talk = { id, text, until: performance.now() + 2800 }; walkers[id].wait = 2800; walkers[id].path = null; walkers[id].goal = null; sound('talk', id, text); return;
+    }
     const o = pickObject(sx, sy);
     if (o) {
       const it = byId(ITEMS, o.item);
@@ -469,7 +610,7 @@ const World = (() => {
   return {
     init() { resize(); centerCam(); clampCam(); },
     show(on) { cv.style.visibility = 'visible'; if (on) start(); else stop(); ui(); },
-    invalidate, centerCam, ui,
+    invalidate, centerCam, ui, react,
     get building() { return B.on; },
     reset() { for (const k of Object.keys(walkers)) delete walkers[k]; B.on = false; B.ghost = null; invalidate(); centerCam(); },
   };
