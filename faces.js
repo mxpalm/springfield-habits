@@ -72,9 +72,10 @@ const Faces = (() => {
     { id: 'pi', top: 58, name: 'Professor Pi', role: 'Quest-Guide, kennt die Studien', rarity: 'common', starter: true, skin: YEL, fav: 'wow',
       hat: 'grad', // Doktorhut ist Kosmetik (data.js), Pi bekommt ihn geschenkt
       head: (c) => `<circle cx="100" cy="114" r="56" fill="${c.skin}" ${stroke()}/>`,
-      front: () => `<circle cx="80" cy="106" r="15" fill="rgba(255,255,255,.2)" ${stroke(3.5)}/><circle cx="120" cy="106" r="15" fill="rgba(255,255,255,.2)" ${stroke(3.5)}/>
+      // Brille = Augenrand: Augen füllen die Gläser genau aus, beim Blinzeln bleibt das leere Gestell
+      front: () => `<circle cx="80" cy="106" r="15" fill="none" ${stroke()}/><circle cx="120" cy="106" r="15" fill="none" ${stroke()}/>
         <path d="M95 104 Q 100 100 105 104" fill="none" ${stroke(3.5)}/>`,
-      eye: { x: 80, y: 106, r: 9, p: 4 }, mouth: { x: 100, y: 140, w: 40 },
+      eye: { x: 80, y: 106, r: 15, p: 5.5, fixed: true }, mouth: { x: 100, y: 140, w: 40 },
       lines: { 1: ['Die Daten sagen: Wir sollten reden.', 'Ein kleiner Schritt ist immer noch ein Schritt.'],
                2: ['Laut Studien wirkt das. Weiter so!', 'Wenn-dann-Pläne sind mein Lieblingstrick.'],
                3: ['Signifikant gut! p kleiner 0,05!', 'Das ist lehrbuchreif. Ich schreib’s auf!'] } },
@@ -340,7 +341,8 @@ const Faces = (() => {
     switch (kind) {
       case 'closed': return `<path d="M${x - E.r} ${y} h${E.r * 2}" ${s}/>`;
       case 'content': return `<path d="M${x - E.r} ${y - 2} Q ${x} ${y + E.r * 1.3} ${x + E.r} ${y - 2}" fill="none" ${s}/>`;
-      case 'wide': return `<circle cx="${x}" cy="${y}" r="${E.r * 1.35}" fill="#fff" ${s}/><circle cx="${x}" cy="${y}" r="${E.p * 0.8}" fill="${INK}"/>`;
+      // fixed: Auge bleibt so groß wie die Brille, nur die Pupille wird kleiner
+      case 'wide': return `<circle cx="${x}" cy="${y}" r="${E.fixed ? E.r : E.r * 1.35}" fill="#fff" ${s}/><circle cx="${x}" cy="${y}" r="${E.p * 0.8}" fill="${INK}"/>`;
       default: return `<circle cx="${x}" cy="${y}" r="${E.r}" fill="#fff" ${s}/><circle cx="${x}" cy="${y}" r="${E.p}" fill="${INK}"/>`;
     }
   }
