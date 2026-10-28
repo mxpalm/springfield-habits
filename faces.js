@@ -70,11 +70,9 @@ const Faces = (() => {
                3: ['Ich bin heute extra knusprig!', 'Mit Butter wär das jetzt perfekt!'] } },
 
     { id: 'pi', top: 58, name: 'Professor Pi', role: 'Quest-Guide, kennt die Studien', rarity: 'common', starter: true, skin: YEL, fav: 'wow',
+      hat: 'grad', // Doktorhut ist Kosmetik (data.js), Pi bekommt ihn geschenkt
       head: (c) => `<circle cx="100" cy="114" r="56" fill="${c.skin}" ${stroke()}/>`,
-      front: () => `<path d="M72 64 H 128 L 126 74 Q 100 80 74 74 Z" fill="#2a2a3a" ${stroke(3)}/>
-        <path d="M100 40 L 152 56 L 100 72 L 48 56 Z" fill="#3a3a4e" ${stroke(3)}/>
-        <path d="M100 56 L 146 62 V 80" fill="none" stroke="#f2c230" stroke-width="3" stroke-linecap="round"/><circle cx="146" cy="83" r="4" fill="#f2c230" ${stroke(2)}/>
-        <circle cx="80" cy="106" r="15" fill="rgba(255,255,255,.2)" ${stroke(3.5)}/><circle cx="120" cy="106" r="15" fill="rgba(255,255,255,.2)" ${stroke(3.5)}/>
+      front: () => `<circle cx="80" cy="106" r="15" fill="rgba(255,255,255,.2)" ${stroke(3.5)}/><circle cx="120" cy="106" r="15" fill="rgba(255,255,255,.2)" ${stroke(3.5)}/>
         <path d="M95 104 Q 100 100 105 104" fill="none" ${stroke(3.5)}/>`,
       eye: { x: 80, y: 106, r: 9, p: 4 }, mouth: { x: 100, y: 140, w: 40 },
       lines: { 1: ['Die Daten sagen: Wir sollten reden.', 'Ein kleiner Schritt ist immer noch ein Schritt.'],

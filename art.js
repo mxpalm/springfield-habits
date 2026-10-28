@@ -5,7 +5,11 @@ const INK = '#1d1d1d';
 // Figur als SVG-String: Kopf aus faces.js in der aktuellen Stimmung. cosmetic: Eintrag aus COSMETICS oder null.
 // headOnly: quadratischer Ausschnitt für runde Rahmen. k: Ausdruck (idle, blink, talk:…, wow …).
 // data-* merkt sich alles, damit Blinzeln und Sprechen das Bild später austauschen können.
+// Hüte: Unterkante der Zeichnung im 100er-Icon und wie tief der Hut auf dem Kopf sitzt (200er-Raster)
+const HAT_FIT = { cap: [72, 18], flower: [93, 8], tophat: [90, 12], helmet: [76, 18], bow: [76, 8], army: [76, 18], grad: [78, 16], donuthat: [92, 12], crown: [86, 10] };
 function avatarSvg(c, cosmetic, size = 64, headOnly = false, k = 'idle') {
+  // Eigener Hut (Pis Doktorhut) auch dort, wo keine Kosmetik übergeben wird, solange die Figur ihn nicht abgelegt hat
+  if (!cosmetic && c.hat && (!S.chars[c.id] || S.chars[c.id].cosmetic === c.hat)) cosmetic = byId(COSMETICS, c.hat);
   let inner = Faces.face(c, userMood(), k), y0 = 26;
   if (cosmetic) {
     // Eigenes Icon (icons.js) statt Emoji-Text
@@ -15,7 +19,7 @@ function avatarSvg(c, cosmetic, size = 64, headOnly = false, k = 'idle') {
       const E = c.eye, w = Faces.sx(E.x) - E.x + E.r * 2 + 28;
       inner += at(100 - w / 2, E.y - w / 2, w);
     } else {
-      const hy = c.top + 18 - 92;
+      const [bottom, sink] = HAT_FIT[cosmetic.id] || [80, 12], hy = c.top + sink - bottom * 0.92;
       inner += at(54, hy, 92);
       y0 = Math.min(y0, hy + 8);
     }

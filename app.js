@@ -266,6 +266,8 @@ const OLD_CAST = { homer: 'rundi', marge: 'olli', bart: 'kalle', lisa: 'pi', ned
 function migrateCast() {
   if (OLD_CAST[S.main]) S.main = OLD_CAST[S.main];
   for (const [o, n] of Object.entries(OLD_CAST)) if (S.chars[o]) { S.chars[n] = S.chars[n] || S.chars[o]; delete S.chars[o]; }
+  // Hut-Geschenk einmalig auch für Spielstände, in denen die Figur schon wohnt
+  if (!S.hatsGiven) { for (const c of CHARACTERS) if (S.chars[c.id]) giveHat(c); S.hatsGiven = true; }
 }
 
 /* ---------- Stimmung der Figuren ---------- */
@@ -333,8 +335,14 @@ setInterval(() => {
   setTimeout(() => { if (el && el !== talking) swapFace(el, 'idle'); }, userMood() === 1 ? 450 : 160);
 }, 1300);
 function unlockChar(id) {
-  S.chars[id] = S.chars[id] || { cosmetic: null, home: true };
+  if (!S.chars[id]) { S.chars[id] = { cosmetic: null, home: true }; giveHat(byId(CHARACTERS, id)); }
   save();
+}
+// Figuren mit eigenem Hut (faces.js: hat) bringen ihn mit: gilt als gekauft und wird aufgesetzt
+function giveHat(c) {
+  if (!c?.hat) return;
+  if (!S.cosmeticsOwned.includes(c.hat)) S.cosmeticsOwned.push(c.hat);
+  if (!S.chars[c.id].cosmetic) S.chars[c.id].cosmetic = c.hat;
 }
 function rollCharacter(minutes) {
   if (minutes < 10) return null;
