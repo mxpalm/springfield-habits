@@ -14,7 +14,7 @@
 const QUEST_GOALS = [
   /* ---------- Konzentration ---------- */
   {
-    id: 'focus', name: 'Konzentration stärken', emoji: '🧠', host: 'lisa',
+    id: 'focus', name: 'Konzentration stärken', emoji: '🧠', host: 'hexa',
     questions: [
       { id: 'phone', q: 'Wie oft greifst du beim Arbeiten oder Lernen zum Handy?', opts: [['often', 'Ständig'], ['some', 'Ab und zu'], ['rarely', 'Kaum']] },
       { id: 'notif', q: 'Wie sind deine Benachrichtigungen eingestellt?', opts: [['all', 'Fast alles an'], ['some', 'Teilweise aus'], ['batch', 'Schon gebündelt oder größtenteils aus']] },
@@ -89,7 +89,7 @@ const QUEST_GOALS = [
 
   /* ---------- Produktiv & nicht aufschieben ---------- */
   {
-    id: 'prod', name: 'Aufschieben besiegen', emoji: '🐸', host: 'marge',
+    id: 'prod', name: 'Aufschieben besiegen', emoji: '🐸', host: 'buh',
     questions: [
       { id: 'why', q: 'Warum schiebst du Dinge meistens auf?', multi: true, sub: 'Mehrere Antworten möglich.', opts: [['boring', 'Ist langweilig'], ['unclear', 'Unklar, wo ich anfangen soll'], ['big', 'Wirkt riesig'], ['fear', 'Angst, es nicht gut genug zu machen']] },
       { id: 'plan', q: 'Planst du deinen Tag schriftlich?', opts: [['daily', 'Ja, täglich'], ['some', 'Manchmal'], ['never', 'Nie']] },
@@ -159,7 +159,7 @@ const QUEST_GOALS = [
 
   /* ---------- Lernen ---------- */
   {
-    id: 'learn', name: 'Besser lernen', emoji: '🎓', host: 'frink',
+    id: 'learn', name: 'Besser lernen', emoji: '🎓', host: 'pi',
     questions: [
       { id: 'what', q: 'Was lernst du gerade?', opts: [['school', 'Studium oder Schule'], ['lang', 'Eine Sprache'], ['job', 'Für den Job'], ['hobby', 'Hobby / Interesse']] },
       { id: 'method', q: 'Wie lernst du meistens?', opts: [['reread', 'Wiederlesen und Markieren'], ['cards', 'Karteikarten / Lern-App'], ['test', 'Ich frage mich selbst ab'], ['random', 'Eher unregelmäßig']] },
@@ -201,7 +201,7 @@ const QUEST_GOALS = [
         src: ['Cepeda et al. 2006', 'https://pubmed.ncbi.nlm.nih.gov/16719566/'],
         learn: ['Learning Scientists', 'https://www.learningscientists.org/downloadable-materials'] },
       { key: 'explain', stage: 2, opt: true, type: 'task', diff: 'medium', title: 'Ein Thema in einfachen Worten erklären (Feynman-Methode)',
-        how: 'Erklär ein Thema laut oder schriftlich so, als wäre dein Gegenüber 12 – oder Homer. Wo du stockst, ist deine Lücke.',
+        how: 'Erklär ein Thema laut oder schriftlich so, als wäre dein Gegenüber 12 Jahre alt. Wo du stockst, ist deine Lücke.',
         why: 'Sich selbst etwas erklären verbessert das Lernen deutlich (g = 0,55), besonders beim Lernen aus Texten.',
         src: ['Bisra et al. 2018, Meta-Analyse', 'https://summit.sfu.ca/item/34322'],
         learn: ['BPS Research Digest', 'https://bps.org.uk/research-digest/self-explanation-powerful-learning-technique-according-meta-analysis-64-studies'] },
@@ -231,7 +231,7 @@ const QUEST_GOALS = [
 
   /* ---------- Mehr lesen ---------- */
   {
-    id: 'read', name: 'Mehr lesen', emoji: '📚', host: 'edna',
+    id: 'read', name: 'Mehr lesen', emoji: '📚', host: 'birne',
     questions: [
       { id: 'now', q: 'Wie viel liest du aktuell?', opts: [['never', 'Fast nie'], ['month', 'Ein paar Seiten im Monat'], ['week', 'Mehrmals pro Woche']] },
       { id: 'book', q: 'Hast du gerade ein Buch, auf das du richtig Lust hast?', opts: [['yes', 'Ja'], ['no', 'Nein']] },
@@ -293,7 +293,7 @@ const QUEST_GOALS = [
 
   /* ---------- Stress & Angst ---------- */
   {
-    id: 'stress', name: 'Weniger Stress', emoji: '🌿', host: 'hibbert',
+    id: 'stress', name: 'Weniger Stress', emoji: '🌿', host: 'wolki',
     questions: [
       { id: 'level', q: 'Wie gestresst fühlst du dich meistens?', opts: [['low', 'Eher entspannt'], ['mid', 'Mal so, mal so'], ['high', 'Oft am Limit']] },
       { id: 'source', q: 'Was stresst dich am meisten?', multi: true, sub: 'Mehrere Antworten möglich.', opts: [['work', 'Arbeit / Uni'], ['worry', 'Grübeln und Sorgen'], ['people', 'Menschen / Beziehungen'], ['body', 'Körperliche Anspannung']] },
@@ -364,7 +364,7 @@ const QUEST_GOALS = [
 
   /* ---------- Stimmung ---------- */
   {
-    id: 'mood', name: 'Bessere Laune', emoji: '🌈', host: 'ned',
+    id: 'mood', name: 'Bessere Laune', emoji: '🌈', host: 'sonni',
     questions: [
       { id: 'low', q: 'Wie oft fühlst du dich niedergeschlagen?', opts: [['rarely', 'Selten'], ['some', 'Ab und zu'], ['often', 'Oft, schon länger']] },
       { id: 'fun', q: 'Wann hast du zuletzt etwas nur zum Spaß gemacht?', opts: [['week', 'Diese Woche'], ['month', 'Diesen Monat'], ['ages', 'Ewig her']] },
@@ -426,7 +426,7 @@ const QUEST_GOALS = [
   // Startpunkt statt Annahme: Wer gerade keine Freunde hat, bekommt keine Aufgaben, die Freunde voraussetzen (onlyIf social.circle).
   // Jedes Kapitel bietet mehrere Wahl-Aufgaben (opt); der Nutzer sucht sich `pick` davon aus (Autonomie, Patall et al. 2008).
   {
-    id: 'social', name: 'Mehr Verbindung', emoji: '🤝', host: 'moe',
+    id: 'social', name: 'Mehr Verbindung', emoji: '🤝', host: 'olli',
     questions: [
       { id: 'circle', q: 'Wie viele Menschen hast du gerade, mit denen du gern Zeit verbringst oder offen reden kannst?', sub: 'Ehrlich ist hier am besten. Wir bauen die Aufgaben auf deinem Startpunkt auf.',
         opts: [['none', 'Gerade niemanden'], ['few', '1–2 Menschen'], ['many', '3 oder mehr']] },
@@ -556,7 +556,7 @@ const QUEST_GOALS = [
 
   /* ---------- Weniger Bildschirm ---------- */
   {
-    id: 'screen', name: 'Weniger Handyzeit', emoji: '📵', host: 'abe',
+    id: 'screen', name: 'Weniger Handyzeit', emoji: '📵', host: 'knorz',
     questions: [
       { id: 'hours', q: 'Wie viele Stunden bist du am Tag am Handy?', sub: 'Schau ruhig in die Bildschirmzeit.', opts: [['lt2', 'Unter 2'], ['2to4', '2–4'], ['4plus', 'Über 4']] },
       { id: 'night', q: 'Wo liegt dein Handy nachts?', opts: [['bed', 'Im Bett / auf dem Nachttisch'], ['room', 'Im Schlafzimmer, außer Reichweite'], ['out', 'Außerhalb des Schlafzimmers']] },
@@ -622,7 +622,7 @@ const QUEST_GOALS = [
 
   /* ---------- Schlaf ---------- */
   {
-    id: 'sleep', name: 'Besser schlafen', emoji: '😴', host: 'homer',
+    id: 'sleep', name: 'Besser schlafen', emoji: '😴', host: 'akku',
     questions: [
       { id: 'issue', q: 'Was trifft auf deinen Schlaf am ehesten zu?', opts: [['ok', 'Eigentlich okay, nur zu wenig'], ['fall', 'Ich schlafe schwer ein'], ['wake', 'Ich wache nachts auf'], ['long', 'Schlafprobleme seit über 3 Monaten']] },
       { id: 'caffeine', q: 'Trinkst du nach 14 Uhr Kaffee, Cola oder Energydrinks?', opts: [['yes', 'Ja, oft'], ['no', 'Nein']] },
@@ -700,7 +700,7 @@ const QUEST_GOALS = [
 
   /* ---------- Fitness ---------- */
   {
-    id: 'fit', name: 'Fitter werden', emoji: '💪', host: 'bart',
+    id: 'fit', name: 'Fitter werden', emoji: '💪', host: 'kalle',
     questions: [
       { id: 'level', q: 'Wie aktiv bist du gerade?', opts: [['none', 'Kaum – eher Couch'], ['some', 'Ab und zu Bewegung'], ['active', 'Regelmäßig Sport']] },
       { id: 'strength', q: 'Machst du Krafttraining?', opts: [['yes', 'Ja, regelmäßig'], ['no', 'Nein']] },
@@ -782,7 +782,7 @@ const QUEST_GOALS = [
 
   /* ---------- Ernährung ---------- */
   {
-    id: 'eat', name: 'Gesünder essen', emoji: '🥦', host: 'lisa',
+    id: 'eat', name: 'Gesünder essen', emoji: '🥦', host: 'pille',
     questions: [
       { id: 'veg', q: 'Wie viele Portionen Obst und Gemüse isst du am Tag?', opts: [['low', '0–1'], ['mid', '2–4'], ['high', '5 oder mehr']] },
       { id: 'soda', q: 'Wie oft trinkst du Süßes (Limo, Saft, Energy)?', opts: [['daily', 'Täglich'], ['some', 'Ab und zu'], ['never', 'Fast nie']] },
@@ -860,7 +860,7 @@ const QUEST_GOALS = [
 
   /* ---------- Trinken ---------- */
   {
-    id: 'water', name: 'Genug trinken', emoji: '💧', host: 'duffman',
+    id: 'water', name: 'Genug trinken', emoji: '💧', host: 'tropf',
     questions: [
       { id: 'amount', q: 'Wie viel trinkst du ungefähr am Tag?', opts: [['lt1', 'Unter 1 Liter'], ['1to2', '1–2 Liter'], ['2plus', 'Über 2 Liter']] },
       { id: 'soda', q: 'Trinkst du täglich Süßes (Limo, Saft)?', opts: [['yes', 'Ja'], ['no', 'Nein']] },
@@ -915,7 +915,7 @@ const QUEST_GOALS = [
 
   /* ---------- Morgenroutine ---------- */
   {
-    id: 'morning', name: 'Guter Start in den Tag', emoji: '🌅', host: 'skinner',
+    id: 'morning', name: 'Guter Start in den Tag', emoji: '🌅', host: 'mokka',
     questions: [
       { id: 'first', q: 'Was machst du als Erstes nach dem Aufwachen?', opts: [['phone', 'Aufs Handy schauen'], ['snooze', 'Snoozen'], ['up', 'Direkt aufstehen']] },
       { id: 'feel', q: 'Wie fühlen sich deine Morgen meistens an?', opts: [['rushed', 'Gehetzt'], ['ok', 'Okay'], ['calm', 'Entspannt']] },

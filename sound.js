@@ -269,7 +269,8 @@ const Snd = (() => {
   };
 
   /* ---------- Plappern: kurze Cartoon-Silben in der Stimmlage der Figur ---------- */
-  const VOICE = { homer: 45, barney: 43, moe: 46, wiggum: 47, burns: 52, abe: 50, marge: 55, bart: 62, lisa: 66, maggie: 74, ralph: 64, milhouse: 63, nelson: 60, kang: 40, moleman: 58, duffman: 50 };
+  const VOICE = { rundi: 47, olli: 58, kalle: 52, pi: 62, krume: 50, quadri: 48, rauti: 64, zwiebi: 60, luna: 56, pille: 66, tropf: 70, stachel: 44, mokka: 46, wolki: 57,
+    eiko: 68, sterni: 72, hexa: 63, birne: 55, funki: 67, akku: 51, keimi: 69, buh: 54, blip: 74, aufschub: 42, sprinkel: 61, bolzen: 40, sonni: 65, kaese: 45, knorz: 38 };
   function talk(id, text = '') {
     const base = VOICE[id] ?? 50 + ([...id].reduce((a, ch) => a + ch.charCodeAt(0), 0) % 12);
     const n = Math.max(3, Math.min(8, Math.round(text.length / 7)));

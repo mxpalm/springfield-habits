@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Figuren-Vorschau</title>
+<style>
+:root { --ink: #1d1d1d; --bg: #a8dcff; --grid: rgba(255,255,255,.45); --card: #fffdf4; }
+* { box-sizing: border-box; }
+body { margin: 0; padding: 16px; font: 14px/1.35 -apple-system, system-ui, sans-serif; color: var(--ink);
+  background-color: var(--bg);
+  background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 16px 16px; }
+h1 { margin: 0 0 4px; font-size: 24px; } h2 { margin: 22px 0 8px; font-size: 18px; } p { margin: 0 0 10px; max-width: 780px; }
+.bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 10px 0 8px; }
+button { font: inherit; font-weight: 700; border: 2px solid var(--ink); border-radius: 10px; background: #fff; padding: 6px 12px; cursor: pointer; }
+button.on, #all { background: #ffd23f; }
+button:active { transform: translateY(1px); }
+.seg { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.stage { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.ghead { grid-column: 1 / -1; margin: 10px 0 0; font-size: 16px; }
+.ch { position: relative; background: var(--card); border: 2px solid var(--ink); border-radius: 14px; padding: 58px 8px 10px; text-align: center; cursor: pointer; }
+.ch svg { width: 128px; height: 110px; display: block; margin: 0 auto; }
+.ch b { display: block; font-size: 15px; } .ch span { font-size: 12px; color: #555; }
+.bubble { position: absolute; left: 8px; right: 8px; top: 6px; min-height: 44px; background: #fff; border: 2px solid var(--ink); border-radius: 12px;
+  padding: 4px 8px; font-size: 12.5px; font-weight: 700; display: flex; align-items: center; justify-content: center; visibility: hidden; }
+.bubble::after { content: ''; position: absolute; left: 50%; bottom: -9px; width: 12px; height: 12px; margin-left: -6px; background: #fff;
+  border-right: 2px solid var(--ink); border-bottom: 2px solid var(--ink); transform: rotate(45deg); }
+.ch.talk .bubble { visibility: visible; }
+.sheet { overflow-x: auto; background: var(--card); border: 2px solid var(--ink); border-radius: 14px; padding: 8px; }
+table { border-collapse: collapse; }
+th { font-size: 11px; font-weight: 700; color: #555; padding: 2px 4px; white-space: nowrap; }
+th.grp { font-size: 12px; color: var(--ink); border-bottom: 2px solid var(--ink); }
+td { padding: 0 2px; text-align: center; } td svg { width: 76px; height: 66px; display: block; }
+td.sep, th.sep { border-left: 2px dashed #c8c0a8; }
+th.row { text-align: left; color: var(--ink); font-size: 13px; }
+label { font-weight: 700; }
+</style></head><body>
+<h1>Figuren-Vorschau</h1>
+<p>29 Figuren, nach Seltenheit sortiert. Jede hat drei Stimmungen, je nachdem, wie gut du dabei bist. Ruhegesicht und Blinzeln richten sich nach der Stimmung.
+Beim Sprechen springt der Mund zufällig zwischen Rede-Motiven; welche vorkommen, hängt ebenfalls von der Stimmung ab.
+Dazu kommen vier Spezial-Ausdrücke: wow, grin, silly und worried.
+Aufschub, das Teufelchen, tickt umgekehrt: Er freut sich, wenn du nachlässt.</p>
+<div class="bar">
+  <label>Deine Lage:</label>
+  <span class="seg" id="moods">
+    <button data-m="1">1 · vernachlässigt</button><button data-m="2" class="on">2 · läuft</button><button data-m="3">3 · gut dabei</button>
+  </span>
+</div>
+<div class="bar">
+  <button id="all">Alle sprechen lassen</button>
+  <label>Tempo <input id="fps" type="range" min="1" max="3" step="1" value="2"> <span id="fpsv">2</span> Bild/s</label>
+</div>
+<div class="stage" id="stage"></div>
+<h2>Stimmungen und Spezial-Ausdrücke</h2>
+<div class="sheet"><table id="sheet"></table></div>
+<h2>Rede-Motive</h2>
+<p>Darunter steht, in welcher Stimmung das Motiv beim Sprechen vorkommt.</p>
+<div class="sheet"><table id="talk"></table></div>
+
+<script src="../faces.js"></script>
+<script>
+// Vorschau für faces.js: alle Figuren, Stimmungen, Spezial-Ausdrücke und Rede-Motive
+const { CHARS, GROUPS, groupOf, MOODS, TALK, SPECIAL, BASE, moodOf, face, talkSeq } = Faces;
+const svg = (inner) => Faces.svg(inner);
+// Bühne
+let mood = 2, fps = 2;
+const stage = document.getElementById('stage');
+const state = {};
+function show(c, k) { stage.querySelector(`[data-id="${c.id}"] .art`).innerHTML = svg(face(c, mood, k)); }
+function renderStage() {
+  for (const id in state) { clearTimeout(state[id].timer); state[id].timer = null; }
+  stage.innerHTML = Object.entries(GROUPS).map(([g, label]) => {
+    const list = CHARS.filter((c) => groupOf(c) === g);
+    return `<h3 class="ghead">${label} · ${list.length}</h3>` + list.map((c) => `<div class="ch" data-id="${c.id}"><div class="bubble"></div><div class="art">${svg(face(c, mood, 'idle'))}</div>
+    <b>${c.name}</b><span>${c.role}</span></div>`).join('');
+  }).join('');
+}
+function speak(c) {
+  const st = state[c.id] ||= { line: 0 };
+  if (st.timer) return;
+  const el = stage.querySelector(`[data-id="${c.id}"]`), lines = c.lines[moodOf(c, mood)];
+  el.querySelector('.bubble').textContent = lines[st.line++ % lines.length];
+  el.classList.add('talk');
+  const seq = talkSeq(c, mood);
+  let i = 0;
+  const step = () => {
+    if (i < seq.length) { show(c, seq[i++]); st.timer = setTimeout(step, 1000 / fps); return; }
+    show(c, 'idle'); el.classList.remove('talk'); st.timer = null;
+  };
+  step();
+}
+stage.onclick = (ev) => { const el = ev.target.closest('.ch'); if (el) speak(CHARS.find((c) => c.id === el.dataset.id)); };
+document.getElementById('all').onclick = () => CHARS.forEach((c, i) => setTimeout(() => speak(c), i * 400));
+const fpsIn = document.getElementById('fps');
+fpsIn.oninput = () => { fps = +fpsIn.value; document.getElementById('fpsv').textContent = fps; };
+document.getElementById('moods').onclick = (ev) => {
+  const b = ev.target.closest('button'); if (!b) return;
+  mood = +b.dataset.m;
+  document.querySelectorAll('#moods button').forEach((x) => x.classList.toggle('on', x === b));
+  renderStage();
+};
+renderStage();
+
+// Blinzeln im Leerlauf: Sprung auf "blink" und zurück; in Stimmung 1 länger (müde)
+setInterval(() => {
+  const c = CHARS[Math.floor(Math.random() * CHARS.length)];
+  if (state[c.id]?.timer) return;
+  show(c, 'blink');
+  setTimeout(() => { if (!state[c.id]?.timer) show(c, 'idle'); }, moodOf(c, mood) === 1 ? 450 : 160);
+}, 1300);
+
+// Stimmungs-Blatt: Spalten nach Lage des Nutzers (Aufschub zeigt dort seine umgekehrte Stimmung), dazu Spezial-Ausdrücke
+const cols = [1, 2, 3].flatMap((m) => BASE.map((k, i) => ({ m, k, sep: i === 0 }))).concat(Object.keys(SPECIAL).map((k, i) => ({ m: 2, k, sep: i === 0 })));
+document.getElementById('sheet').innerHTML =
+  `<tr><th></th><th class="grp sep" colspan="2">1 · vernachlässigt</th><th class="grp sep" colspan="2">2 · läuft</th><th class="grp sep" colspan="2">3 · gut dabei</th><th class="grp sep" colspan="4">Spezial</th></tr>`
+  + `<tr><th></th>${cols.map((col) => `<th class="${col.sep ? 'sep' : ''}">${col.k}</th>`).join('')}</tr>`
+  + CHARS.map((c) => `<tr><th class="row">${c.name}</th>${cols.map((col) => `<td class="${col.sep ? 'sep' : ''}">${svg(face(c, col.m, col.k))}</td>`).join('')}</tr>`).join('');
+
+// Rede-Motiv-Blatt (Augen der Stimmung 2)
+const usedIn = (k) => [1, 2, 3].filter((m) => MOODS[m].talk.includes(k)).join(' · ');
+document.getElementById('talk').innerHTML =
+  `<tr><th></th>${TALK.map((k) => `<th>${k}</th>`).join('')}</tr>`
+  + CHARS.map((c) => `<tr><th class="row">${c.name}</th>${TALK.map((k) => `<td>${svg(face(c, 2, 'talk:' + k))}</td>`).join('')}</tr>`).join('')
+  + `<tr><th class="row">Stimmung</th>${TALK.map((k) => `<th>${usedIn(k)}</th>`).join('')}</tr>`;
+</script>
+</body></html>

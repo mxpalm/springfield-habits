@@ -98,8 +98,8 @@ function quizView() {
   const val = a[st.id];
   const head = `<div class="quizhead"><button class="rbtn small" data-act="qzBack" aria-label="Zurück">${ICON.back}</button>
     <div class="qzbar"><i style="width:${Math.round((quiz.step / (n - 1)) * 100)}%"></i></div><span class="small">${quiz.step + 1}/${n}</span></div>`;
-  const c = mainChar(), lisa = byId(CHARACTERS, 'lisa');
-  if (st.kind === 'intro') return `${head}<div class="quizhost">${avatarSvg(lisa, null, 120)}<div class="speech">Hi${S.name ? ' ' + esc(S.name) : ''}! Ich bin Lisa. Ich stelle dir ein paar Fragen und baue daraus deine Quests – mit Methoden, die in Studien funktioniert haben.</div></div>
+  const c = mainChar(), pi = byId(CHARACTERS, 'pi');
+  if (st.kind === 'intro') return `${head}<div class="quizhost">${avatarSvg(pi, null, 120)}<div class="speech">Hi${S.name ? ' ' + esc(S.name) : ''}! Ich bin Professor Pi. Ich stelle dir ein paar Fragen und baue daraus deine Quests – mit Methoden, die in Studien funktioniert haben.</div></div>
     <div class="card"><p style="margin-top:0"><b>So funktioniert’s:</b></p>
     <p>🏆 <b>Hauptquests</b> sind deine großen Ziele, z. B. „Konzentration stärken“.</p>
     <p>🧩 Jede Hauptquest hat <b>Kapitel</b> mit kleinen <b>Unterquests</b>: tägliche Gewohnheiten, einmalige Aufgaben und Wissenskarten mit Quellen.</p>
@@ -107,7 +107,7 @@ function quizView() {
     <p class="small muted" style="margin-bottom:0">Dauert etwa 3 Minuten. Du kannst alles später ändern.</p></div>
     <button class="btn pink big block" data-act="qzNext">Los geht’s!</button>
     <button class="btn white block" style="margin-top:10px" data-act="qzSkip">Überspringen</button>`;
-  if (st.kind === 'tintro') return `${head}<div class="quizhost">${avatarSvg(lisa, null, 120)}<div class="speech">${quiz.edit
+  if (st.kind === 'tintro') return `${head}<div class="quizhost">${avatarSvg(pi, null, 120)}<div class="speech">${quiz.edit
       ? 'Hier kannst du deine Antworten ändern. Ich passe deine laufenden Quests daran an – ohne Neustart.'
       : `Seit deinem Fragebogen sind ${quiz.top.length - 2 === 1 ? 'eine neue Frage' : `${quiz.top.length - 2} neue Fragen`} dazugekommen. Damit passe ich deine Quests genauer an dich an.`}</div></div>
     <div class="card"><p style="margin-top:0">✓ <b>Geschafftes bleibt geschafft</b> – Kapitel, Streaks und Donuts behältst du.</p>
@@ -118,7 +118,7 @@ function quizView() {
   if (st.kind === 'tsum') {
     const ch = adaptQuests(a, true);
     const li = (s, txt) => `<li>${typeIcon(s.type)} ${esc(s.title)}${txt ? ` <span class="small muted">· ${txt}</span>` : ''}</li>`;
-    return `${head}<div class="quizhost">${avatarSvg(lisa, null, 110)}<div class="speech">${ch.length ? 'Danke! Das ändert sich:' : 'Danke! Deine Quests passen schon – nichts zu ändern.'}</div></div>
+    return `${head}<div class="quizhost">${avatarSvg(pi, null, 110)}<div class="speech">${ch.length ? 'Danke! Das ändert sich:' : 'Danke! Deine Quests passen schon – nichts zu ändern.'}</div></div>
       ${ch.map((c) => { const g = goalOf(c.q); return `<div class="card qsum"><div class="qkick">${g.emoji} ${esc(g.name)} · Kapitel ${c.q.stage + 1}${c.q.status === 'paused' ? ' · pausiert' : ''}</div>
         <ul class="qlist">${c.drop.map((s) => li(s, c.q.subs[s.key]?.habitId ? 'fällt weg, Verlauf bleibt in der Statistik' : 'fällt weg')).join('')}
           ${c.skip.map((s) => li(s, 'machst du schon – zählt als geschafft')).join('')}
@@ -309,7 +309,7 @@ function subRow(q, s) {
     ${s.type === 'habit' && r.state === 'active' ? `<span class="pbar"><i style="width:${subProgress(q, s) * 100}%"></i></span>` : ''}</span>${right}</button>`;
 }
 function questsView() {
-  if (!S.quests || !S.quests.length) return `<div class="card empty"><div style="font-size:48px">🗺️</div><p>Noch keine Quests.<br>Beantworte ein paar Fragen und Lisa baut dir passende Quests.</p>
+  if (!S.quests || !S.quests.length) return `<div class="card empty"><div style="font-size:48px">🗺️</div><p>Noch keine Quests.<br>Beantworte ein paar Fragen und Professor Pi baut dir passende Quests.</p>
     <button class="btn pink" data-act="qzStart">Fragebogen starten</button></div>`;
   const act = activeQuests(), paused = S.quests.filter((q) => q.status === 'paused'), queued = S.quests.filter((q) => q.status === 'queued'), done = S.quests.filter((q) => q.status === 'done');
   const host = (g) => byId(CHARACTERS, g.host) || mainChar();
@@ -417,7 +417,7 @@ function pickerView() {
 /* ---------- Antworten nachtragen / ändern ---------- */
 function topupCta() {
   const n = missingCount();
-  return n ? `<button class="card questcta pickcta" data-act="qzTop"><span style="font-size:28px">❓</span><span class="grow"><b>${n === 1 ? 'Eine neue Frage' : `${n} neue Fragen`} zu deinen Quests</b><br><span class="small muted">Kurz beantworten – Lisa passt deine Quests an. Ohne Neustart.</span></span></button>` : '';
+  return n ? `<button class="card questcta pickcta" data-act="qzTop"><span style="font-size:28px">❓</span><span class="grow"><b>${n === 1 ? 'Eine neue Frage' : `${n} neue Fragen`} zu deinen Quests</b><br><span class="small muted">Kurz beantworten – Professor Pi passt deine Quests an. Ohne Neustart.</span></span></button>` : '';
 }
 // Neue Fragen (z. B. nach einem Update) beantworten, ohne die Quests neu zu erzeugen:
 // passende Aufgaben bleiben, Geschafftes bleibt, nur Unpassendes wird ersetzt.

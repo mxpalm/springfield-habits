@@ -54,7 +54,7 @@ function remindTick() {
     fire(`${t}|${h.id}`, h.remind, () => {
       const c = hostOf(h);
       if (seen) { sound('remind'); toast(`⏰ ${c.name}: Zeit für „${h.name}“!`); }
-      else notify(h.name, `${c.name}: ${h.cue ? `${h.cue} → ${h.name}.` : pick(c.lines)}`, `h-${h.id}`);
+      else notify(h.name, `${c.name}: ${h.cue ? `${h.cue} → ${h.name}.` : Faces.line(c, userMood())}`, `h-${h.id}`);
     });
   }
   if (R.eveningOn) fire(`${t}|evening`, R.evening, () => {
@@ -160,7 +160,7 @@ Object.assign(actions, {
   },
   remindTest: () => {
     const c = mainChar();
-    if (!notify('Test-Erinnerung', `${c.name}: ${pick(c.lines)}`, 'test')) toast(`⏰ ${c.name}: So sieht eine Erinnerung in der App aus.`);
+    if (!notify('Test-Erinnerung', `${c.name}: ${Faces.line(c, userMood())}`, 'test')) toast(`⏰ ${c.name}: So sieht eine Erinnerung in der App aus.`);
   },
   remindIcs: () => {
     const blob = new Blob([icsText()], { type: 'text/calendar' });

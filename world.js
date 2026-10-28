@@ -52,7 +52,13 @@ const World = (() => {
   let geo = null, running = false, last = 0;
   const imgs = new Map();
   const walkers = {};
-  let talk = null; // { id, text, until }
+  let talk = null; // { id, text, until, t0, seq }
+  // Figur spricht: Sprechblase plus Mund-Folge aus faces.js
+  function say(id, text, ms) {
+    const t0 = performance.now();
+    talk = { id, text, until: t0 + ms, t0, seq: Faces.talkSeq(byId(CHARACTERS, id), userMood()) };
+    walkers[id].wait = ms;
+  }
   const B = { on: false, tray: 'items', paint: null, ghost: null };
 
   const isoX = (x, y) => (x - y) * TW / 2;
@@ -83,7 +89,8 @@ const World = (() => {
     return e.ok ? e.img : null;
   }
   const objImage = (id, flip) => image('o:' + id + (flip ? ':f' : ''), () => isoArtOf(id, flip).svg(3));
-  const charImage = (c) => { const cos = S.chars[c.id]?.cosmetic || ''; return image(`c:${c.id}:${cos}`, () => avatarSvg(c, cosmeticOf(c.id), 180)); };
+  // Ein Bild je Figur, Kosmetik, Stimmung und Ausdruck (Blinzeln, Rede-Motive)
+  const charImage = (c, k = 'idle') => { const cos = S.chars[c.id]?.cosmetic || '', m = userMood(); return image(`c:${c.id}:${cos}:${m}:${k}`, () => avatarSvg(c, cosmeticOf(c.id), 180, false, k)); };
 
   /* --- Kachel-Geometrie (zwischengespeichert, neu bei Kartenänderung) --- */
   function diamond(p, x, y, lift = 0) {
@@ -246,7 +253,7 @@ const World = (() => {
       }
     }
   }
-  const CW = 34, CH = CW * 1.68;
+  const CW = 44, CH = CW * 0.78; // Köpfe aus faces.js: 200 × 156
   function walkerScreen(id) {
     const w = walkers[id];
     if (!w) return null;
@@ -368,15 +375,20 @@ const World = (() => {
     ctx.restore();
   }
   function drawWalker(id) {
-    const c = byId(CHARACTERS, id), img = charImage(c), p = walkerScreen(id);
+    const c = byId(CHARACTERS, id), p = walkerScreen(id), w = walkers[id], now = performance.now();
+    // Sprechen: Mund wechselt alle 500 ms; sonst ab und zu blinzeln
+    if (!w.blinkAt) w.blinkAt = now + 1500 + Math.random() * 5000;
+    if (now > w.blinkAt) { w.blinkUntil = now + (userMood() === 1 ? 450 : 160); w.blinkAt = now + 2500 + Math.random() * 5000; }
+    const k = talk && talk.id === id && now < talk.until ? talk.seq[Math.floor((now - talk.t0) / 500)] || 'idle' : now < w.blinkUntil ? 'blink' : 'idle';
+    const img = charImage(c, k) || charImage(c);
     if (!img || !p) return;
-    const w = walkers[id];
     ctx.fillStyle = 'rgba(0,0,0,.2)';
     ctx.beginPath(); ctx.ellipse(isoX(w.fx + 0.5, w.fy + 0.5), isoY(w.fx + 0.5, w.fy + 0.5), 11, 5.5, 0, 0, 6.29); ctx.fill();
     ctx.save();
     ctx.translate(p.wx, p.wy);
     if (w.face < 0) ctx.scale(-1, 1);
-    ctx.drawImage(img, -CW / 2, -CH + 3, CW, CH);
+    const ih = CW * img.height / img.width; // mit Hut höher
+    ctx.drawImage(img, -CW / 2, -ih + 3, CW, ih);
     ctx.restore();
     if (emotes[id] && (!talk || talk.id !== id)) drawEmote(id, p.wx, p.wy - CH - 2);
   }
@@ -425,7 +437,7 @@ const World = (() => {
     cheer(kind !== 'habit');
     const ids = Object.keys(walkers), id = ids.includes(S.main) ? S.main : pick(ids);
     const text = kind === 'quest' ? 'Hauptquest geschafft! Ganz Springfield feiert!' : kind === 'chapter' ? 'Neues Kapitel! Weiter so!' : progressLine();
-    talk = { id, text, until: performance.now() + 3200 }; walkers[id].wait = 3200;
+    say(id, text, 3200);
     sound('talk', id, text);
   }
   function progressLine() {
@@ -540,8 +552,8 @@ const World = (() => {
     }
     const id = pickWalker(sx, sy);
     if (id) {
-      const text = Math.random() < 0.5 ? progressLine() : pick(byId(CHARACTERS, id).lines);
-      talk = { id, text, until: performance.now() + 2800 }; walkers[id].wait = 2800; walkers[id].path = null; walkers[id].goal = null; sound('talk', id, text); return;
+      const text = Math.random() < 0.5 ? progressLine() : Faces.line(byId(CHARACTERS, id), userMood());
+      say(id, text, 2800); walkers[id].path = null; walkers[id].goal = null; sound('talk', id, text); return;
     }
     const o = pickObject(sx, sy);
     if (o) {

@@ -24,7 +24,7 @@ const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 const STORE = 'springfield-habits-v1';
 function freshState() {
   return {
-    v: 1, started: false, name: '', main: 'homer',
+    v: 1, started: false, name: '', main: 'rundi',
     donuts: 50, xp: 0, freezes: 1,
     habits: [], log: {}, counts: {}, freezeUsed: {},
     sessions: [], focusRun: null,
@@ -45,8 +45,9 @@ catch (e) {
 }
 S.settings = Object.assign(freshState().settings, S.settings);
 // Schlägt Speichern fehl (Speicher voll oder gesperrt), einmal deutlich warnen statt still Daten zu verlieren
-let saveFailed = false;
+let saveFailed = false, moodCache = null;
 const save = () => {
+  moodCache = null;
   try { localStorage.setItem(STORE, JSON.stringify(S)); saveFailed = false; }
   catch (e) { console.warn(e); if (!saveFailed) { saveFailed = true; problem('save', e); } }
 };
@@ -206,7 +207,7 @@ function setStatus(h, k, st) {
   // Comeback-Bonus einmal pro Tag und Gewohnheit
   const cb = okStatus(next) && !okStatus(old) && !(h.comeback || []).includes(k) ? comebackBonus(h, k) : 0;
   if (cb) h.comeback = [...(h.comeback || []).slice(-20), k];
-  reward(nd - od + cb, nx - ox, cb ? `+${nd - od + cb} 🍩 Comeback-Bonus! Schön, dass du wieder dabei bist.` : nd - od > 0 ? `+${nd - od} 🍩 ${pick(mainChar().lines)}` : null);
+  reward(nd - od + cb, nx - ox, cb ? `+${nd - od + cb} 🍩 Comeback-Bonus! Schön, dass du wieder dabei bist.` : nd - od > 0 ? `+${nd - od} 🍩 ${Faces.line(mainChar(), userMood())}` : null);
   if (h.quest) questCheck();
 }
 /* ---------- Zähl-Gewohnheiten ---------- */
@@ -257,6 +258,80 @@ function processMissedDays() {
 const mainChar = () => byId(CHARACTERS, S.main) || CHARACTERS[0];
 const unlocked = () => CHARACTERS.filter((c) => S.chars[c.id]);
 const cosmeticOf = (id) => byId(COSMETICS, S.chars[id]?.cosmetic);
+// Figuren-Umbau (v21): alte Figuren-IDs auf die Formen-Figuren gleicher Seltenheit umschreiben. Freischaltung, Kosmetik und Hauptfigur bleiben.
+const OLD_CAST = { homer: 'rundi', marge: 'olli', bart: 'kalle', lisa: 'pi', ned: 'krume', milhouse: 'quadri', moe: 'rauti', barney: 'zwiebi',
+  wiggum: 'luna', ralph: 'pille', nelson: 'tropf', krusty: 'stachel', cbg: 'mokka', lenny: 'wolki', carl: 'eiko', skinner: 'sterni', edna: 'hexa',
+  willie: 'birne', hibbert: 'funki', frink: 'akku', smithers: 'keimi', abe: 'buh', burns: 'bolzen', bob: 'aufschub', duffman: 'sprinkel',
+  kang: 'blip', maggie: 'sonni', moleman: 'knorz', grimes: 'kaese' };
+function migrateCast() {
+  if (OLD_CAST[S.main]) S.main = OLD_CAST[S.main];
+  for (const [o, n] of Object.entries(OLD_CAST)) if (S.chars[o]) { S.chars[n] = S.chars[n] || S.chars[o]; delete S.chars[o]; }
+}
+
+/* ---------- Stimmung der Figuren ---------- */
+// 1 vernachlässigt, 2 läuft, 3 gut dabei. Gilt für alle Figuren (Aufschub dreht sie in faces.js um).
+// Zwischengespeichert bis zum nächsten save() oder Tageswechsel.
+function userMood() {
+  const t = today();
+  if (moodCache?.t === t) return moodCache.m;
+  const hs = S.habits.filter((h) => !h.archived && h.schedule.type !== 'weekly');
+  // Fällige und erledigte Tage der letzten n Tage; heute zählt nur, was schon erledigt ist
+  const tally = (n) => {
+    let due = 0, ok = 0;
+    for (let i = 0; i < n; i++) {
+      const k = addDays(t, -i);
+      for (const h of hs) {
+        if (!isDue(h, k)) continue;
+        const done = okStatus(status(h, k)) || frozen(h, k);
+        if (i === 0 && !done) continue;
+        due++; if (done) ok++;
+      }
+    }
+    return { due, ok };
+  };
+  let m = 2;
+  if (hs.length) {
+    const r3 = tally(3), r7 = tally(7);
+    if ((r3.due >= 2 && r3.ok === 0) || (r3.due >= 3 && r3.ok / r3.due < 1 / 3)) m = 1;
+    else if (streakNow() >= 7 || (r7.due >= 5 && r7.ok / r7.due >= 0.8)) m = 3;
+  }
+  moodCache = { t, m };
+  return m;
+}
+
+/* ---------- Lebendige Gesichter ---------- */
+// Tauscht ein Avatar-SVG gegen denselben Kopf mit anderem Ausdruck und gibt das neue Element zurück
+function swapFace(el, k) {
+  const c = el?.isConnected && byId(CHARACTERS, el.dataset.c);
+  if (!c) return null;
+  const t = document.createElement('template');
+  t.innerHTML = avatarSvg(c, byId(COSMETICS, el.dataset.co), +el.dataset.s, !!el.dataset.h, k);
+  const n = t.content.firstElementChild;
+  el.replaceWith(n);
+  return n;
+}
+// Sprechen: Mund springt mit 2 Bildern pro Sekunde zwischen den Rede-Motiven der Stimmung
+let talking = null;
+function talkFace(el, ms = 2600) {
+  const c = el && byId(CHARACTERS, el.dataset.c);
+  if (!c) return;
+  clearTimeout(talkFace.t);
+  const seq = Faces.talkSeq(c, userMood()).slice(0, Math.max(1, Math.floor(ms / 500)));
+  let i = 0;
+  const step = () => {
+    talking = el = swapFace(el, i < seq.length ? seq[i] : 'idle');
+    if (el && i++ < seq.length) talkFace.t = setTimeout(step, 500); else talking = null;
+  };
+  step();
+}
+// Blinzeln im Leerlauf: ab und zu ein sichtbares Gesicht, in Stimmung 1 länger (müde)
+setInterval(() => {
+  if (document.hidden) return;
+  const all = [...document.querySelectorAll('svg.avatar[data-c]')].filter((e) => e !== talking && e.getClientRects().length);
+  if (!all.length) return;
+  const el = swapFace(pick(all), 'blink');
+  setTimeout(() => { if (el && el !== talking) swapFace(el, 'idle'); }, userMood() === 1 ? 450 : 160);
+}, 1300);
 function unlockChar(id) {
   S.chars[id] = S.chars[id] || { cosmetic: null, home: true };
   save();
@@ -323,7 +398,7 @@ function finishFocus(completed) {
       <p>+${d} Donuts · +${minutes} XP${r.hardcore ? ' · Hardcore ×1,5' : ''}</p>
       ${c ? `<div class="card" style="background:#fffbe0"><div class="pv">${avatarSvg(c, null, 90)}</div>
         <h3>Neue Figur: ${esc(c.name)}!</h3><div class="rar" style="color:${RARITY[c.rarity].color};font-weight:800">${RARITY[c.rarity].label}</div>
-        <p class="small">„${esc(c.lines[0])}“</p></div>` : ''}
+        <p class="small">„${esc(Faces.line(c, userMood()))}“</p></div>` : ''}
       </div>`;
   }
   render();
@@ -573,7 +648,7 @@ function habitsView() {
   // Kopf: Datum, Fortschritt, Figur sagt, was jetzt dran ist
   const label = ckBack === 0 ? 'Heute' : ckBack === 1 ? 'Gestern' : `Vor ${ckBack} Tagen`;
   const say = !due.length ? 'Heute ist nichts fällig. Genieß den Tag!'
-    : !open.length ? (doneN === due.length ? `Alles erledigt! ${c.lines[0]}` : 'Alles abgehakt. Morgen wieder!')
+    : !open.length ? (doneN === due.length ? `Alles erledigt! ${Faces.line(c, userMood())}` : 'Alles abgehakt. Morgen wieder!')
     : ckBack ? 'Trag nach, was du an dem Tag geschafft hast.'
     : doneN === 0 ? 'Tipp auf den Kreis, sobald du etwas erledigt hast.'
     : `Noch ${open.length} – du schaffst das!`;
@@ -611,14 +686,14 @@ function habitsView() {
   const backQ = !ckBack && pausedQ.find((q) => q.until && q.until <= today());
   const backHtml = backQ ? `<div class="card questcta pickcta"><span style="font-size:28px">▶</span><span class="grow"><b>Pause vorbei: ${esc(goalOf(backQ).name)}</b><br><span class="small muted">Heute ist dein Neustart. Fortschritt und Streaks warten auf dich.</span>
     <span class="row" style="gap:8px;margin-top:8px"><button class="btn small green" data-act="qResume" data-q="${backQ.id}">Weitermachen</button><button class="btn small white" data-act="qSnooze" data-q="${backQ.id}">Noch 1 Woche</button></span></span></div>` : '';
-  const empty = !active.length ? `<div class="card empty"><div class="pv">${avatarSvg(byId(CHARACTERS, 'lisa'), null, 80)}</div><p><b>Noch keine Gewohnheiten.</b><br>Lass dir von Lisa Quests bauen oder leg selbst los.</p>
+  const empty = !active.length ? `<div class="card empty"><div class="pv">${avatarSvg(byId(CHARACTERS, 'pi'), null, 80)}</div><p><b>Noch keine Gewohnheiten.</b><br>Lass dir von Professor Pi Quests bauen oder leg selbst los.</p>
     ${S.quests?.length ? '' : '<button class="btn pink block" data-act="qzStart">Quests einrichten</button>'}</div>` : '';
   const topHtml = !ckBack && !pickQ ? topupCta() : '';
   return `${pageHead('Check-in')}${checkinTabs()}${head}${backHtml}${pickHtml}${topHtml}${empty}${sections}${taskHtml}${ckBack ? '' : backupHtml()}
     ${handled.length ? foldGroup('Abgehakt', '✓', 'Abgehakt', handled.length, handled.map((h) => habitRow(h, k, { compact: true })).join(''), false) : ''}
     ${free.length ? foldGroup('Heute frei', '🛋', ckBack ? 'An diesem Tag frei' : 'Heute frei', free.length, free.map((h) => habitRow(h, k, { compact: true })).join(''), true) : ''}
     ${pausedRows.length && !ckBack ? foldGroup('Pausiert', '⏸', 'Pausiert', pausedRows.length, pausedRows.join(''), true) : ''}
-    ${active.length && !S.quests?.length ? `<button class="card questcta" data-act="qzStart"><span style="font-size:30px">🗺️</span><span class="grow"><b>Quests einrichten</b><br><span class="small muted">Lisa baut dir Ziele mit Methoden aus Studien.</span></span></button>` : ''}
+    ${active.length && !S.quests?.length ? `<button class="card questcta" data-act="qzStart"><span style="font-size:30px">🗺️</span><span class="grow"><b>Quests einrichten</b><br><span class="small muted">Professor Pi baut dir Ziele mit Methoden aus Studien.</span></span></button>` : ''}
     <button class="btn white block" data-act="newHabit">＋ Eigene Gewohnheit</button>
     <p class="small muted center">Wischen geht auch: rechts = erledigt, links = heute nicht.</p>`;
 }
@@ -736,7 +811,8 @@ function readHabitForm() {
 // Fokus-Szene: Figur sitzt auf der Couch, darüber eine Gedankenblase.
 const COUCH = '#9a76a6';
 function couchScene(c, think) {
-  const fig = avatarSvg(c, cosmeticOf(c.id), 140).replace('<svg class="avatar"', '<svg x="80" y="-4"');
+  // Kopf sitzt vor der Rückenlehne auf dem Polster
+  const fig = avatarSvg(c, cosmeticOf(c.id), 140).replace('class="avatar"', 'x="80" y="86"');
   return `<div class="fscene"><svg viewBox="0 0 300 252" width="300" height="252" aria-hidden="true" stroke="${INK}" stroke-width="3.5" stroke-linejoin="round">
       <ellipse cx="150" cy="244" rx="132" ry="9" fill="rgba(0,0,0,.28)" stroke="none"/>
       <rect x="34" y="132" width="232" height="80" rx="22" fill="${COUCH}"/>
@@ -914,7 +990,7 @@ function charsView() {
 function charSheet(id) {
   const c = byId(CHARACTERS, id), st = S.chars[id];
   openModal(`<div class="row"><div>${avatarSvg(c, cosmeticOf(id), 90)}</div><div class="grow"><h2 style="margin:0">${esc(c.name)}</h2>
-      <div style="color:${RARITY[c.rarity].color};font-weight:800">${RARITY[c.rarity].label}</div><p class="small">„${esc(pick(c.lines))}“</p></div></div>
+      <div style="color:${RARITY[c.rarity].color};font-weight:800">${RARITY[c.rarity].label}</div><p class="small">„${esc(Faces.line(c, userMood()))}“</p></div></div>
     <div class="toggle"><b>Wohnt in der Stadt</b><label class="switch"><input type="checkbox" data-act="charHome" data-id="${id}" ${st.home !== false ? 'checked' : ''}><span></span></label></div>
     <label class="f">Kosmetik</label>
     <div class="emopick"><button class="${!st.cosmetic ? 'on' : ''}" data-act="equip" data-id="${id}" data-c="">∅</button>
@@ -1039,7 +1115,7 @@ const actions = {
   sub: (d) => { sub = d.s || null; render(); $('#page').scrollTop = 0; },
   close: () => closeModal(),
   noop: () => toast('Noch nicht freigeschaltet – fokussiere, um sie zu finden!'),
-  sayMain: () => { const t = pick(mainChar().lines); sayAt($('#hud .me'), t); sound('talk', S.main, t); },
+  sayMain: () => { const t = Faces.line(mainChar(), userMood()); sayAt($('#hud .me'), t); talkFace($('#hud .me svg.avatar')); sound('talk', S.main, t); },
   obPick: (d) => { S.main = d.id; const n = $('#ob-name').value; render(); $('#ob-name').value = n; },
   obStart: () => {
     S.name = $('#ob-name').value.trim() || 'Du';
@@ -1155,7 +1231,7 @@ const actions = {
   backup: () => backupNow().then((ok) => { if (ok) { toast('☁ Backup gesichert.'); render(); } }),
   backupLater: () => { S.backupSnooze = addDays(today(), 3); save(); render(); },
   playSnd: (d) => { if (!S.settings.sound) return toast('Töne sind aus (Einstellungen).'); Snd.unlock(); sound(d.k, +d.n || 1); },
-  playTalk: (d) => { if (!S.settings.sound) return; Snd.unlock(); const c = byId(CHARACTERS, d.id); sayAt($('#hud .me'), pick(c.lines)); sound('talk', c.id, 'x'.repeat(30)); },
+  playTalk: (d) => { if (!S.settings.sound) return; Snd.unlock(); const c = byId(CHARACTERS, d.id); sayAt($('#hud .me'), Faces.line(c, userMood())); sound('talk', c.id, 'x'.repeat(30)); },
   screenTest: () => {
     const probe = (u) => { lvhProbe.style.height = '100' + u; const v = lvhProbe.offsetHeight; lvhProbe.style.height = '100lvh'; return v; };
     const safe = (s) => { const d = document.createElement('div'); d.style.cssText = `position:fixed;top:0;height:env(safe-area-inset-${s})`; document.body.appendChild(d); const v = d.offsetHeight; d.remove(); return v; };
@@ -1191,7 +1267,7 @@ document.addEventListener('change', (e) => {
       const data = JSON.parse(txt);
       if (!data || !Array.isArray(data.habits) || !data.map) throw new Error('Ungültige Datei');
       if (!confirm('Backup laden? Der aktuelle Spielstand wird ersetzt.')) return;
-      S = Object.assign(freshState(), data); S.settings = Object.assign(freshState().settings, data.settings); migrateMap(); Snd.setVol(); save(); World.reset(); render(); toast('Backup geladen.');
+      S = Object.assign(freshState(), data); S.settings = Object.assign(freshState().settings, data.settings); migrateMap(); migrateCast(); Snd.setVol(); save(); World.reset(); render(); toast('Backup geladen.');
     }).catch(() => toast('Datei konnte nicht gelesen werden.'));
   }
 });
@@ -1242,6 +1318,7 @@ window.visualViewport?.addEventListener('resize', () => setTimeout(resetViewport
 /* ---------- Start (aufgerufen von world.js) ---------- */
 function boot() {
   migrateMap();
+  migrateCast();
   World.init();
   processMissedDays();
   ensureChallenges();

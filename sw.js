@@ -1,8 +1,8 @@
 // Offline-Cache: Die App startet sofort aus dem Cache – auch bei schlechtem oder keinem Netz.
 // Updates kommen über eine neue Cache-Version (CACHE hochzählen): Der Browser prüft sw.js beim Start,
 // lädt alle Dateien der neuen Version auf einmal (keine gemischten Stände) und die App bietet „Neu laden“ an.
-const CACHE = 'springfield-v20';
-const FILES = ['./', 'index.html', 'style.css', 'data.js', 'questdata.js', 'art.js', 'icons.js', 'sound.js', 'isoart.js', 'app.js', 'quests.js', 'remind.js', 'world.js',
+const CACHE = 'springfield-v21';
+const FILES = ['./', 'index.html', 'style.css', 'faces.js', 'data.js', 'questdata.js', 'art.js', 'icons.js', 'sound.js', 'isoart.js', 'app.js', 'quests.js', 'remind.js', 'world.js',
   'manifest.webmanifest', 'icon.svg', 'icon-180.png', 'icon-192.png', 'icon-512.png', 'fonts/luckiestguy.woff2', 'fonts/nunito.woff2'];
 
 self.addEventListener('install', (e) => {
